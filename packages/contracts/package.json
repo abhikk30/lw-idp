@@ -12,7 +12,7 @@
     "codegen": "buf generate",
     "lint": "buf lint",
     "breaking": "buf breaking --against '.git#branch=main'",
-    "build": "pnpm codegen",
+    "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "echo 'no tests yet'",
     "clean": "rm -rf dist .turbo"
