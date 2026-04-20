@@ -1,0 +1,6 @@
+dependencies:
+- name: lw-idp-service
+  repository: file://../lw-idp-service
+  version: 0.1.0
+digest: sha256:1d52cda7744eaa2dba571d075419f2c5360c43f42c6c5495a02571fff7d9b703
+generated: "2026-04-21T01:34:12.732476+05:30"
