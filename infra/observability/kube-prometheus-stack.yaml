@@ -1,0 +1,33 @@
+namespaceOverride: observability
+
+prometheus:
+  prometheusSpec:
+    replicas: 2
+    retention: 7d
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: standard
+          resources: { requests: { storage: 2Gi } }
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+
+alertmanager:
+  alertmanagerSpec:
+    replicas: 2
+
+grafana:
+  replicas: 2
+  adminPassword: admin
+  persistence:
+    enabled: true
+    type: pvc
+    size: 1Gi
+  defaultDashboardsEnabled: true
+  sidecar:
+    dashboards: { enabled: true }
+    datasources: { enabled: true }
