@@ -1,0 +1,32 @@
+image:
+  repository: localhost:5001/lw-idp/catalog-svc
+  tag: dev
+  pullPolicy: IfNotPresent
+
+service:
+  port: 80
+  targetPort: 4002
+
+replicaCount: 2
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+topologySpreadConstraints:
+  maxSkew: 1
+  whenUnsatisfiable: ScheduleAnyway
+
+probes:
+  liveness:
+    path: /healthz
+  readiness:
+    path: /readyz
