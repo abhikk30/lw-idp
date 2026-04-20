@@ -1,0 +1,23 @@
+{
+  "name": "@lw-idp/events",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "clean": "rm -rf dist coverage .turbo"
+  },
+  "dependencies": {
+    "nats": "2.28.2",
+    "ulid": "2.3.0",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@lw-idp/config": "workspace:*",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
