@@ -1,0 +1,11 @@
+.superpowers/
+.DS_Store
+node_modules/
+dist/
+build/
+.env
+.env.*
+!.env.example
+*.log
+.idea/
+.vscode/
