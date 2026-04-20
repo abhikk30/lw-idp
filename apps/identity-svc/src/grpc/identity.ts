@@ -1,9 +1,16 @@
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError, type ServiceImpl } from "@connectrpc/connect";
 import type { OidcVerifier } from "@lw-idp/auth";
-import type { IdentityService } from "@lw-idp/contracts/identity/v1";
+import { type IdentityService, Role } from "@lw-idp/contracts/identity/v1";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
-import type { User as UserRow } from "../db/schema/index.js";
+import type { Team as TeamRow, User as UserRow } from "../db/schema/index.js";
+import {
+  type MemberRole,
+  addTeamMember,
+  createTeam,
+  getTeamsForUser,
+  listTeams,
+} from "../services/teams.js";
 import { getUserById, listUsers, upsertUserBySubject } from "../services/users.js";
 
 export interface IdentityServiceDeps {
@@ -25,6 +32,30 @@ function toProtoUser(row: UserRow): {
     email: row.email,
     displayName: row.displayName ?? "",
     avatarUrl: row.avatarUrl ?? "",
+    createdAt: timestampFromDate(row.createdAt),
+  };
+}
+
+function dbRoleFromProto(role: Role): MemberRole {
+  if (role === Role.OWNER) {
+    return "owner";
+  }
+  if (role === Role.MAINTAINER) {
+    return "maintainer";
+  }
+  return "member";
+}
+
+function toProtoTeam(row: TeamRow): {
+  id: string;
+  slug: string;
+  name: string;
+  createdAt: ReturnType<typeof timestampFromDate>;
+} {
+  return {
+    id: row.id,
+    slug: row.slug,
+    name: row.name,
     createdAt: timestampFromDate(row.createdAt),
   };
 }
@@ -58,9 +89,10 @@ export function makeIdentityServiceImpl(
         upsertInput.avatarUrl = picture;
       }
       const user = await upsertUserBySubject(deps.db, upsertInput);
+      const teamsForUser = await getTeamsForUser(deps.db, user.id);
       return {
         user: toProtoUser(user),
-        teams: [], // populated in C3 once team handlers land
+        teams: teamsForUser.map(toProtoTeam),
       };
     },
 
@@ -90,17 +122,54 @@ export function makeIdentityServiceImpl(
       };
     },
 
-    async createTeam(_req) {
-      throw new ConnectError("not implemented yet", Code.Unimplemented);
+    async createTeam(req) {
+      if (!req.slug || !req.name) {
+        throw new ConnectError("slug and name required", Code.InvalidArgument);
+      }
+      try {
+        const team = await createTeam(deps.db, { slug: req.slug, name: req.name });
+        return { team: toProtoTeam(team) };
+      } catch (err) {
+        if (err instanceof Error && /duplicate key/i.test(err.message)) {
+          throw new ConnectError(`team with slug '${req.slug}' already exists`, Code.AlreadyExists);
+        }
+        throw err;
+      }
     },
-    async addTeamMember(_req) {
-      throw new ConnectError("not implemented yet", Code.Unimplemented);
+
+    async addTeamMember(req) {
+      if (!req.teamId || !req.userId) {
+        throw new ConnectError("team_id and user_id required", Code.InvalidArgument);
+      }
+      await addTeamMember(deps.db, {
+        teamId: req.teamId,
+        userId: req.userId,
+        role: dbRoleFromProto(req.role),
+      });
+      return {};
     },
-    async listTeams(_req) {
-      return { teams: [], nextPageToken: "" };
+
+    async listTeams(req) {
+      const listOpts: { limit?: number; pageToken?: string } = {};
+      if (req.limit > 0) {
+        listOpts.limit = req.limit;
+      }
+      if (req.pageToken) {
+        listOpts.pageToken = req.pageToken;
+      }
+      const res = await listTeams(deps.db, listOpts);
+      return {
+        teams: res.teams.map(toProtoTeam),
+        nextPageToken: res.nextPageToken,
+      };
     },
-    async getMyTeams(_req) {
-      return { teams: [] };
+
+    async getMyTeams(req) {
+      if (!req.userId) {
+        throw new ConnectError("user_id required", Code.InvalidArgument);
+      }
+      const rows = await getTeamsForUser(deps.db, req.userId);
+      return { teams: rows.map(toProtoTeam) };
     },
   };
 }
