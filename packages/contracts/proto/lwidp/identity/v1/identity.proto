@@ -1,0 +1,88 @@
+syntax = "proto3";
+
+package lwidp.identity.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// IdentityService manages users, teams, and token verification for lw-idp.
+service IdentityService {
+  rpc VerifyToken(VerifyTokenRequest) returns (VerifyTokenResponse);
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+  rpc CreateTeam(CreateTeamRequest) returns (CreateTeamResponse);
+  rpc AddTeamMember(AddTeamMemberRequest) returns (AddTeamMemberResponse);
+  rpc ListTeams(ListTeamsRequest) returns (ListTeamsResponse);
+  rpc GetMyTeams(GetMyTeamsRequest) returns (GetMyTeamsResponse);
+}
+
+message User {
+  string id = 1;
+  string subject = 2;
+  string email = 3;
+  string display_name = 4;
+  string avatar_url = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message Team {
+  string id = 1;
+  string slug = 2;
+  string name = 3;
+  google.protobuf.Timestamp created_at = 4;
+}
+
+enum Role {
+  ROLE_UNSPECIFIED = 0;
+  ROLE_OWNER = 1;
+  ROLE_MAINTAINER = 2;
+  ROLE_MEMBER = 3;
+}
+
+message TeamMembership {
+  string team_id = 1;
+  string user_id = 2;
+  Role role = 3;
+}
+
+message VerifyTokenRequest { string id_token = 1; }
+message VerifyTokenResponse {
+  User user = 1;
+  repeated Team teams = 2;
+}
+
+message GetUserRequest { string id = 1; }
+message GetUserResponse { User user = 1; }
+
+message ListUsersRequest {
+  int32 limit = 1;
+  string page_token = 2;
+}
+message ListUsersResponse {
+  repeated User users = 1;
+  string next_page_token = 2;
+}
+
+message CreateTeamRequest {
+  string slug = 1;
+  string name = 2;
+}
+message CreateTeamResponse { Team team = 1; }
+
+message AddTeamMemberRequest {
+  string team_id = 1;
+  string user_id = 2;
+  Role role = 3;
+}
+message AddTeamMemberResponse {}
+
+message ListTeamsRequest {
+  int32 limit = 1;
+  string page_token = 2;
+}
+message ListTeamsResponse {
+  repeated Team teams = 1;
+  string next_page_token = 2;
+}
+
+message GetMyTeamsRequest { string user_id = 1; }
+message GetMyTeamsResponse { repeated Team teams = 1; }

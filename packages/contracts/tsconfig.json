@@ -1,5 +1,9 @@
 {
   "extends": "@lw-idp/config/tsconfig",
-  "compilerOptions": { "rootDir": ".", "outDir": "dist" },
-  "include": ["dist"]
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist-ts"
+  },
+  "include": ["dist/proto/**/*.ts", "src/**/*.ts"],
+  "exclude": ["node_modules"]
 }
