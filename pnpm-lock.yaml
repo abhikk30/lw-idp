@@ -75,6 +75,15 @@ importers:
 
   packages/config: {}
 
+  packages/contracts:
+    devDependencies:
+      '@lw-idp/config':
+        specifier: workspace:*
+        version: link:../config
+      typescript:
+        specifier: 'catalog:'
+        version: 5.6.3
+
   packages/db:
     dependencies:
       drizzle-orm:
