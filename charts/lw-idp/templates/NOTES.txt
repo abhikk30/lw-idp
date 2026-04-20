@@ -1,0 +1,17 @@
+lw-idp platform installed.
+
+Apps deployed:
+  - web              https://portal.lw-idp.local
+  - gateway-svc      ClusterIP gateway-svc:80
+  - identity-svc     ClusterIP identity-svc:80
+  - catalog-svc      ClusterIP catalog-svc:80
+  - cluster-svc      ClusterIP cluster-svc:80
+  - notification-svc ClusterIP notification-svc:80
+
+Check status:
+  kubectl -n {{ .Release.Namespace }} get pods
+  kubectl -n {{ .Release.Namespace }} get svc
+
+Hit a service:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/gateway-svc 14000:80
+  curl -sS http://localhost:14000/healthz

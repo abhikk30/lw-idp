@@ -1,0 +1,10 @@
+apiVersion: v2
+name: gateway-svc
+description: lw-idp gateway service (Fastify BFF)
+type: application
+version: 0.0.1
+appVersion: "0.0.0"
+dependencies:
+  - name: lw-idp-service
+    version: 0.1.0
+    repository: "file://../lw-idp-service"

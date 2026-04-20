@@ -1,0 +1,8 @@
+apiVersion: v2
+name: lw-idp-service
+description: Library chart with common templates for lw-idp microservices.
+type: library
+version: 0.1.0
+appVersion: "0.0.0"
+maintainers:
+  - name: lw-idp platform

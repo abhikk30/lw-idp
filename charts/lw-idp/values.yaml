@@ -1,0 +1,4 @@
+# Umbrella values. Per-service overrides go under the service's key.
+# Example:
+# gateway-svc:
+#   replicaCount: 3

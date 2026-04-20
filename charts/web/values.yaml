@@ -1,0 +1,30 @@
+image:
+  repository: localhost:5001/lw-idp/web
+  tag: dev
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 3001
+
+replicaCount: 2
+
+resources:
+  requests: { cpu: 100m, memory: 256Mi }
+  limits:   { cpu: 500m, memory: 768Mi }
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+topologySpreadConstraints:
+  maxSkew: 1
+  whenUnsatisfiable: ScheduleAnyway
+
+# Next.js exposes /api/healthz and /api/readyz (not /healthz /readyz).
+probes:
+  liveness:
+    path: /api/healthz
+  readiness:
+    path: /api/readyz

@@ -1,0 +1,14 @@
+node_modules
+dist
+coverage
+.turbo
+.next
+.env
+*.log
+.git
+docs
+test
+.github
+infra
+charts
+scripts

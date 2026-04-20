@@ -1,0 +1,25 @@
+{
+  "name": "@lw-idp/service-kit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "clean": "rm -rf dist coverage .turbo"
+  },
+  "dependencies": {
+    "@lw-idp/errors": "workspace:*",
+    "@lw-idp/telemetry": "workspace:*",
+    "fastify": "5.1.0",
+    "fastify-metrics": "12.1.0"
+  },
+  "devDependencies": {
+    "@lw-idp/config": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

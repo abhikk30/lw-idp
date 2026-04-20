@@ -1,0 +1,27 @@
+{
+  "name": "@lw-idp/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --port 3001",
+    "build": "next build",
+    "start": "next start --port 3001 --hostname 0.0.0.0",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "clean": "rm -rf .next dist coverage .turbo"
+  },
+  "dependencies": {
+    "next": "15.0.3",
+    "react": "19.0.0",
+    "react-dom": "19.0.0"
+  },
+  "devDependencies": {
+    "@lw-idp/config": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/react": "19.0.1",
+    "@types/react-dom": "19.0.1",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
