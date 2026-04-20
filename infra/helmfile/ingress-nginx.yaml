@@ -6,7 +6,7 @@ releases:
     values:
       - controller:
           kind: Deployment
-          replicaCount: 2
+          replicaCount: 1
           service:
             type: NodePort
           hostPort:
