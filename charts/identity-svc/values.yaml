@@ -7,7 +7,12 @@ service:
   port: 80
   targetPort: 4001
 
-replicaCount: 2
+# Single replica while identity-svc owns the in-memory PKCE state store +
+# temporary /auth/login + /auth/callback routes. Two replicas split the state
+# store so a callback hitting a different pod than the login fails with
+# "invalid state". When these routes move to gateway-svc in Plan 1.5 and state
+# moves to Dragonfly, this scales back to 2.
+replicaCount: 1
 
 resources:
   requests:

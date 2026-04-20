@@ -1,4 +1,4 @@
-import { eq, isNull } from "drizzle-orm";
+import { asc, eq, isNull } from "drizzle-orm";
 import { jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { JSONCodec, type JetStreamClient } from "nats";
@@ -55,6 +55,7 @@ export function publishOutbox(opts: PublishOutboxOptions): OutboxPublisherHandle
         .select()
         .from(opts.table)
         .where(isNull(opts.table.publishedAt))
+        .orderBy(asc(opts.table.createdAt))
         .limit(batch);
 
       for (const row of unpublished) {
