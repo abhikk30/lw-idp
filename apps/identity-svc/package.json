@@ -26,6 +26,7 @@
     "@lw-idp/service-kit": "workspace:*",
     "@lw-idp/telemetry": "workspace:*",
     "drizzle-orm": "0.36.0",
+    "nats": "2.28.2",
     "postgres": "3.4.4",
     "ulid": "2.3.0"
   },

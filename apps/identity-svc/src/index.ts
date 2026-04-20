@@ -1,6 +1,9 @@
 import { createOidcVerifier } from "@lw-idp/auth";
 import { connect } from "@lw-idp/db";
+import { publishOutbox } from "@lw-idp/events";
 import { startServer } from "@lw-idp/service-kit";
+import { connect as natsConnect } from "nats";
+import { outbox } from "./db/schema/index.js";
 import { registerConnectRpc } from "./grpc/plugin.js";
 import { registerAuthRoutes } from "./http/auth.js";
 import { createStateStore } from "./services/oidc.js";
@@ -22,6 +25,37 @@ const verifier = createOidcVerifier({
   jwksPath: "/keys",
 });
 const stateStore = createStateStore({ ttlMs: 10 * 60_000 });
+
+const natsUrl = process.env.NATS_URL ?? "nats://nats.nats-system.svc.cluster.local:4222";
+
+const nc = await natsConnect({ servers: natsUrl });
+const js = nc.jetstream();
+const publisher = publishOutbox({
+  db,
+  js,
+  table: outbox,
+  pollIntervalMs: Number(process.env.OUTBOX_POLL_MS ?? 500),
+  onError: (err: unknown) => {
+    // eslint-disable-next-line no-console
+    console.error("[outbox]", err);
+  },
+});
+
+for (const sig of ["SIGTERM", "SIGINT"] as const) {
+  process.once(sig, async () => {
+    try {
+      await publisher.stop();
+    } catch {
+      // ignore
+    }
+    try {
+      await nc.drain();
+    } catch {
+      // ignore
+    }
+    // service-kit's own signal handler will also fire and close Fastify.
+  });
+}
 
 await startServer({
   name: "identity-svc",
