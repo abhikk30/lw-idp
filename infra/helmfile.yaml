@@ -1,0 +1,22 @@
+helmDefaults:
+  wait: true
+  timeout: 600
+  atomic: true
+  createNamespace: true
+
+---
+{{ readFile "helmfile/repos.yaml" }}
+
+---
+helmfiles:
+  - path: helmfile/cert-manager.yaml
+  - path: helmfile/ingress-nginx.yaml
+  - path: helmfile/cnpg.yaml
+  - path: helmfile/nats.yaml
+  - path: helmfile/dex.yaml
+  - path: helmfile/dragonfly.yaml
+  - path: helmfile/observability.yaml
+# Note: Postgres Cluster CR, NATS stream CRs, Dragonfly instance CR, and Dex secret
+# are applied by scripts/cluster-bootstrap.sh after helmfile sync completes —
+# they need the operators above to be Ready first, and CRs don't belong in
+# Helm releases. See Task D11.
