@@ -17,6 +17,8 @@
     "@connectrpc/connect": "2.1.1",
     "@connectrpc/connect-fastify": "2.1.1",
     "@connectrpc/connect-node": "2.1.1",
+    "@bufbuild/protobuf": "2.11.0",
+    "@lw-idp/auth": "workspace:*",
     "@lw-idp/contracts": "workspace:*",
     "@lw-idp/db": "workspace:*",
     "@lw-idp/errors": "workspace:*",

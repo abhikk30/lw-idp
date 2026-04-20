@@ -134,6 +134,9 @@ importers:
 
   apps/identity-svc:
     dependencies:
+      '@bufbuild/protobuf':
+        specifier: 2.11.0
+        version: 2.11.0
       '@connectrpc/connect':
         specifier: 2.1.1
         version: 2.1.1(@bufbuild/protobuf@2.11.0)
@@ -143,6 +146,9 @@ importers:
       '@connectrpc/connect-node':
         specifier: 2.1.1
         version: 2.1.1(@bufbuild/protobuf@2.11.0)(@connectrpc/connect@2.1.1(@bufbuild/protobuf@2.11.0))
+      '@lw-idp/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@lw-idp/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
