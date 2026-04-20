@@ -32,12 +32,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm turbo run typecheck
 
-  test:
+  test-unit:
     runs-on: ubuntu-latest
-    services:
-      docker:
-        image: docker:27-dind
-        options: --privileged
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -45,7 +41,29 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
-      - run: pnpm turbo run test --filter='./packages/*'
+      - run: >-
+          pnpm turbo run test
+          --filter='./packages/*'
+          --filter='!@lw-idp/testing'
+          --filter='!@lw-idp/db'
+
+  test-integration:
+    runs-on: ubuntu-latest
+    # ubuntu-latest runners already have Docker installed and a working
+    # /var/run/docker.sock. testcontainers-node auto-discovers it; no `services:`
+    # sidecar needed. (A `services: docker-dind` block exposes docker at tcp://docker:2375,
+    # which testcontainers does not auto-find — see review issue I1.)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.12.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: >-
+          pnpm turbo run test
+          --filter='@lw-idp/testing'
+          --filter='@lw-idp/db'
         env:
           TESTCONTAINERS_REUSE_ENABLE: "true"
 
