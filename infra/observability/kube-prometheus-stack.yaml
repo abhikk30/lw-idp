@@ -21,7 +21,11 @@ alertmanager:
     replicas: 2
 
 grafana:
-  replicas: 2
+  # 1 replica on dev — kind has a single ReadWriteOnce PVC provisioner
+  # (rancher.io/local-path), so two Grafana pods deadlock the shared sqlite DB
+  # and emit 500s on / (grafana redirects to /error). HA Grafana requires a
+  # shared external DB; that's Plan 1.10 for the ha profile.
+  replicas: 1
   adminPassword: admin
   persistence:
     enabled: true
