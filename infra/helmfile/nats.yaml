@@ -1,0 +1,21 @@
+releases:
+  - name: nats
+    namespace: nats-system
+    chart: nats/nats
+    version: 1.2.8
+    values:
+      - config:
+          cluster:
+            enabled: true
+            replicas: 3
+          jetstream:
+            enabled: true
+            fileStore:
+              pvc:
+                size: 1Gi
+                storageClassName: standard
+        podTemplate:
+          topologySpreadConstraints:
+            kubernetes.io/hostname:
+              maxSkew: 1
+              whenUnsatisfiable: ScheduleAnyway

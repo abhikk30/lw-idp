@@ -1,0 +1,29 @@
+apiVersion: jetstream.nats.io/v1beta2
+kind: Stream
+metadata:
+  name: idp-domain
+  namespace: nats-system
+spec:
+  name: IDP_DOMAIN
+  subjects: ["idp.>"]
+  retention: limits
+  maxAge: 1209600s
+  replicas: 3
+  storage: file
+  servers: ["nats://nats.nats-system.svc.cluster.local:4222"]
+---
+apiVersion: jetstream.nats.io/v1beta2
+kind: Stream
+metadata:
+  name: idp-audit
+  namespace: nats-system
+spec:
+  name: IDP_AUDIT
+  retention: limits
+  maxAge: 31536000s
+  replicas: 3
+  storage: file
+  servers: ["nats://nats.nats-system.svc.cluster.local:4222"]
+  sources:
+    - name: IDP_DOMAIN
+      filterSubject: "idp.audit.>"
