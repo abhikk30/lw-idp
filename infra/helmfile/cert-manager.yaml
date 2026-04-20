@@ -1,0 +1,14 @@
+releases:
+  - name: cert-manager
+    namespace: cert-manager
+    chart: jetstack/cert-manager
+    version: v1.16.1
+    values:
+      - installCRDs: true
+        replicaCount: 2
+        webhook:
+          replicaCount: 2
+        cainjector:
+          replicaCount: 2
+        extraArgs:
+          - --leader-election-lease-duration=60s
