@@ -1,0 +1,11 @@
+{
+  "name": "@lw-idp/config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "files": ["tsconfig.base.json", "turbo.base.json"],
+  "exports": {
+    "./tsconfig": "./tsconfig.base.json",
+    "./turbo": "./turbo.base.json"
+  }
+}
