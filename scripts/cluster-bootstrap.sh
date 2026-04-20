@@ -30,6 +30,14 @@ echo "==> applying Postgres Cluster CR"
 kubectl apply -f infra/cnpg/cluster.yaml
 kubectl -n lwidp-data wait --for=condition=Ready --timeout=300s cluster/pg
 
+echo "==> applying per-service databases"
+# Note: databases.postgresql.cnpg.io CRD is absent in this CNPG build (Path B).
+# init-databases.sh idempotently creates each service DB via kubectl exec into
+# the primary pod.  When the operator is upgraded to a version that ships the
+# Database CR, replace this block with:
+#   kubectl apply -f infra/cnpg/database-identity.yaml
+bash "${ROOT}/infra/cnpg/init-databases.sh"
+
 echo "==> applying NATS streams"
 kubectl apply -f infra/nats/stream.yaml
 
