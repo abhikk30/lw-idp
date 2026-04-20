@@ -147,6 +147,12 @@ jobs:
         with:
           cluster_name: lw-idp-dev
           config: infra/kind/dev.yaml
+          # Pin kind + K8s node image to what we run locally (.mise.toml).
+          # helm/kind-action defaults to the newest kind release which may ship
+          # a K8s node image too fresh for GHA runners — we hit that on first
+          # run with kindest/node:v1.35.0 failing kubeadm control-plane boot.
+          version: v0.24.0
+          node_image: kindest/node:v1.31.1
           wait: 120s
       - uses: pnpm/action-setup@v4
         with: { version: 9.12.0 }
