@@ -1,0 +1,21 @@
+dependencies:
+- name: gateway-svc
+  repository: file://../gateway-svc
+  version: 0.0.1
+- name: identity-svc
+  repository: file://../identity-svc
+  version: 0.0.1
+- name: catalog-svc
+  repository: file://../catalog-svc
+  version: 0.0.1
+- name: cluster-svc
+  repository: file://../cluster-svc
+  version: 0.0.1
+- name: notification-svc
+  repository: file://../notification-svc
+  version: 0.0.1
+- name: web
+  repository: file://../web
+  version: 0.0.1
+digest: sha256:5be6469a826a81aff8e8c239fc79d9914c7485961a64b0b7629b2150db932dcc
+generated: "2026-04-21T01:59:35.385068+05:30"

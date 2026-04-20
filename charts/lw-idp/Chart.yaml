@@ -1,0 +1,25 @@
+apiVersion: v2
+name: lw-idp
+description: lw-idp platform umbrella chart — installs all microservices.
+type: application
+version: 0.0.1
+appVersion: "0.0.0"
+dependencies:
+  - name: gateway-svc
+    version: 0.0.1
+    repository: "file://../gateway-svc"
+  - name: identity-svc
+    version: 0.0.1
+    repository: "file://../identity-svc"
+  - name: catalog-svc
+    version: 0.0.1
+    repository: "file://../catalog-svc"
+  - name: cluster-svc
+    version: 0.0.1
+    repository: "file://../cluster-svc"
+  - name: notification-svc
+    version: 0.0.1
+    repository: "file://../notification-svc"
+  - name: web
+    version: 0.0.1
+    repository: "file://../web"
