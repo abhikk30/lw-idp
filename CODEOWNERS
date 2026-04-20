@@ -1,0 +1,11 @@
+# Global default owner
+*       @abhishek-kumar-lw-idp
+
+# Platform infra
+/infra/             @abhishek-kumar-lw-idp
+/charts/            @abhishek-kumar-lw-idp
+/scripts/           @abhishek-kumar-lw-idp
+/.github/           @abhishek-kumar-lw-idp
+
+# Specs and plans require doc review
+/docs/superpowers/  @abhishek-kumar-lw-idp
