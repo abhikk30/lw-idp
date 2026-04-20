@@ -1,0 +1,18 @@
+{
+  "name": "@lw-idp/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run --testTimeout=300000",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "rm -rf coverage .turbo"
+  },
+  "devDependencies": {
+    "@lw-idp/config": "workspace:*",
+    "@types/node": "catalog:",
+    "execa": "9.5.1",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
