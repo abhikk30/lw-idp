@@ -26,6 +26,30 @@ pnpm install
 ./scripts/cluster-nuke.sh         # destructive: clusters + registry + caches
 ```
 
+## Development workflow
+
+1. **Start the cluster** — `./scripts/cluster-up.sh dev`
+2. **Install platform infra** — `./scripts/cluster-bootstrap.sh dev`
+3. **Diagnose** (anytime) — `./scripts/cluster-doctor.sh dev`
+4. **Reset** (when things feel weird) — `./scripts/cluster-reset.sh dev`
+
+Every check-in is gated by Lefthook (Biome + Commitlint) locally and by the `ci` workflow on PR.
+
+### Repo tour
+
+| Path | Purpose |
+|---|---|
+| `apps/` | deployable services (populated starting Plan 1.2) |
+| `packages/` | shared libraries |
+| `charts/` | per-service Helm charts + `charts/lw-idp` umbrella (Plan 1.2+) |
+| `infra/kind/` | kind cluster profiles |
+| `infra/helmfile.yaml` + `infra/helmfile/*.yaml` | pinned operator/chart versions |
+| `infra/{cnpg,nats,dex,dragonfly,observability}/` | operator CRs + values |
+| `scripts/` | idempotent dev automation |
+| `docs/adr/` | Architecture Decision Records |
+| `docs/superpowers/specs/` | design specs |
+| `docs/superpowers/plans/` | implementation plans |
+
 ## Docs
 
 - Spec: `docs/superpowers/specs/2026-04-20-lw-idp-foundation-design.md`
