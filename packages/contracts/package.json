@@ -7,7 +7,7 @@
     ".": "./src/index.ts",
     "./identity/v1": "./dist/proto/lwidp/identity/v1/identity_pb.ts"
   },
-  "files": ["dist", "openapi", "proto", "src"],
+  "files": ["dist", "dist-ts", "openapi", "proto", "src"],
   "scripts": {
     "codegen": "buf generate",
     "lint": "buf lint",

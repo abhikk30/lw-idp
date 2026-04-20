@@ -1,5 +1,5 @@
 import { createOidcVerifier } from "@lw-idp/auth";
-import { connect } from "@lw-idp/db";
+import { connect, runMigrations } from "@lw-idp/db";
 import { publishOutbox } from "@lw-idp/events";
 import { startServer } from "@lw-idp/service-kit";
 import { connect as natsConnect } from "nats";
@@ -19,6 +19,11 @@ const redirectUri =
 const sessionSecure = (process.env.SESSION_SECURE ?? "false") === "true";
 
 const db = connect(pgDsn);
+
+if (process.env.RUN_MIGRATIONS === "1") {
+  await runMigrations(db, { migrationsFolder: "src/db/migrations" });
+}
+
 const verifier = createOidcVerifier({
   issuer: dexIssuer,
   audience: dexAudience,

@@ -19,6 +19,9 @@ coverage/
 
 # generated
 packages/contracts/dist/
+packages/contracts/src/*.js
+packages/contracts/src/*.js.map
+packages/contracts/dist-ts/
 
 # env
 .env.local

@@ -1,0 +1,14 @@
+**/node_modules
+apps/**/dist
+**/coverage
+**/.turbo
+**/.next
+**/.env
+**/.env.*
+!**/.env.example
+**/*.log
+.git
+docs
+infra
+charts
+scripts
