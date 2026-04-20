@@ -1,0 +1,28 @@
+{
+  "name": "@lw-idp/testing",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --reporter=verbose",
+    "clean": "rm -rf dist coverage .turbo"
+  },
+  "dependencies": {
+    "@testcontainers/nats": "10.13.2",
+    "@testcontainers/postgresql": "10.13.2",
+    "testcontainers": "10.13.2"
+  },
+  "devDependencies": {
+    "@lw-idp/config": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/pg": "8.11.10",
+    "pg": "8.13.0",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

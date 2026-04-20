@@ -1,0 +1,7 @@
+releases:
+  - name: dex
+    namespace: dex
+    chart: dex/dex
+    version: 0.20.0
+    values:
+      - ../dex/values.yaml

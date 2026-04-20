@@ -1,0 +1,5 @@
+{
+  "extends": "@lw-idp/config/tsconfig",
+  "compilerOptions": { "rootDir": ".", "outDir": "dist" },
+  "include": ["src", "test"]
+}

@@ -1,0 +1,36 @@
+releases:
+  - name: nats
+    namespace: nats-system
+    chart: nats/nats
+    version: 1.2.8
+    values:
+      - config:
+          cluster:
+            enabled: true
+            replicas: 3
+          jetstream:
+            enabled: true
+            fileStore:
+              pvc:
+                size: 1Gi
+                storageClassName: standard
+        podTemplate:
+          topologySpreadConstraints:
+            kubernetes.io/hostname:
+              maxSkew: 1
+              whenUnsatisfiable: ScheduleAnyway
+
+  - name: nack
+    namespace: nats-system
+    chart: nats/nack
+    # NOTE: spec requested 0.29.3 which does not exist in the repo;
+    # closest available lower version was 0.29.2, but the cluster already
+    # has nack-0.33.2 installed (via D6 imperative install), so pinning to
+    # 0.33.2 here to make helmfile sync a no-op reconciliation.
+    version: 0.33.2
+    needs:
+      - nats-system/nats
+    values:
+      - jetstream:
+          nats:
+            url: nats://nats:4222

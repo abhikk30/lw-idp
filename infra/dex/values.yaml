@@ -1,0 +1,30 @@
+replicaCount: 2
+
+config:
+  issuer: https://dex.lw-idp.local
+  storage:
+    type: kubernetes
+    config:
+      inCluster: true
+  web:
+    http: 0.0.0.0:5556
+  connectors:
+    - type: github
+      id: github
+      name: GitHub
+      config:
+        clientID: $GITHUB_CLIENT_ID
+        clientSecret: $GITHUB_CLIENT_SECRET
+        redirectURI: https://dex.lw-idp.local/callback
+  oauth2:
+    responseTypes: ["code"]
+    skipApprovalScreen: true
+  staticClients:
+    - id: lw-idp-gateway
+      name: lw-idp Gateway
+      redirectURIs: ["https://portal.lw-idp.local/auth/callback"]
+      secret: $GATEWAY_CLIENT_SECRET
+
+envFrom:
+  - secretRef:
+      name: dex-env

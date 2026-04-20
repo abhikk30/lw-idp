@@ -9,3 +9,20 @@ build/
 *.log
 .idea/
 .vscode/
+
+# turbo
+.turbo/
+
+# test artifacts
+coverage/
+*.tsbuildinfo
+
+# generated
+packages/contracts/dist/
+
+# env
+.env.local
+.env.*.local
+
+# OS
+Thumbs.db

@@ -1,0 +1,37 @@
+namespaceOverride: observability
+
+prometheus:
+  prometheusSpec:
+    replicas: 2
+    retention: 7d
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: standard
+          resources: { requests: { storage: 2Gi } }
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+
+alertmanager:
+  alertmanagerSpec:
+    replicas: 2
+
+grafana:
+  # 1 replica on dev — kind has a single ReadWriteOnce PVC provisioner
+  # (rancher.io/local-path), so two Grafana pods deadlock the shared sqlite DB
+  # and emit 500s on / (grafana redirects to /error). HA Grafana requires a
+  # shared external DB; that's Plan 1.10 for the ha profile.
+  replicas: 1
+  adminPassword: admin
+  persistence:
+    enabled: true
+    type: pvc
+    size: 1Gi
+  defaultDashboardsEnabled: true
+  sidecar:
+    dashboards: { enabled: true }
+    datasources: { enabled: true }

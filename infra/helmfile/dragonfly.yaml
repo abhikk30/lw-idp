@@ -1,0 +1,7 @@
+releases:
+  - name: dragonfly-operator
+    namespace: dragonfly-operator-system
+    chart: oci://ghcr.io/dragonflydb/dragonfly-operator/helm/dragonfly-operator
+    version: v1.1.10
+    values:
+      - ../dragonfly/values.yaml

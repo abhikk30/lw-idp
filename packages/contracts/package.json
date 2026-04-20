@@ -1,0 +1,21 @@
+{
+  "name": "@lw-idp/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./dist/index.js" },
+  "files": ["dist", "openapi", "proto"],
+  "scripts": {
+    "codegen": "buf generate && tsc -p tsconfig.json",
+    "lint": "echo 'no proto files yet; skipping buf lint (arrives in Plan 1.3)'",
+    "breaking": "buf breaking --against '.git#branch=main'",
+    "build": "pnpm codegen",
+    "typecheck": "[ -d dist ] && tsc -p tsconfig.json --noEmit || echo 'no generated code yet; skipping typecheck'",
+    "test": "echo 'no tests yet'",
+    "clean": "rm -rf dist .turbo"
+  },
+  "devDependencies": {
+    "@lw-idp/config": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

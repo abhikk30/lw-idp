@@ -1,0 +1,10 @@
+openapi: 3.1.0
+info:
+  title: lw-idp Gateway API
+  version: 0.0.0
+  description: External REST surface of the lw-idp gateway service.
+servers:
+  - url: /api/v1
+paths: {}
+components:
+  schemas: {}

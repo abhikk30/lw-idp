@@ -1,0 +1,7 @@
+releases:
+  - name: cnpg
+    namespace: cnpg-system
+    chart: cnpg/cloudnative-pg
+    version: 0.22.1
+    values:
+      - replicaCount: 1
