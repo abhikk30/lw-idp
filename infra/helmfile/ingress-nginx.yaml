@@ -1,0 +1,24 @@
+releases:
+  - name: ingress-nginx
+    namespace: ingress-nginx
+    chart: ingress-nginx/ingress-nginx
+    version: 4.11.3
+    values:
+      - controller:
+          kind: Deployment
+          replicaCount: 2
+          service:
+            type: NodePort
+          hostPort:
+            enabled: true
+            ports:
+              http: 80
+              https: 443
+          nodeSelector:
+            ingress-ready: "true"
+          tolerations:
+            - key: node-role.kubernetes.io/control-plane
+              operator: Equal
+              effect: NoSchedule
+          admissionWebhooks:
+            enabled: true
