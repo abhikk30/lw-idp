@@ -1,0 +1,13 @@
+[tools]
+node = "22.11.0"
+pnpm = "9.12.0"
+kubectl = "1.31.1"
+kind = "0.24.0"
+helm = "3.16.2"
+helmfile = "0.168.0"
+tilt = "0.33.21"
+k6 = "0.54.0"
+"npm:@bufbuild/buf" = "1.44.0"
+
+[env]
+TESTCONTAINERS_REUSE_ENABLE = "true"
