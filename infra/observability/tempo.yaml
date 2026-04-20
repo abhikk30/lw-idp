@@ -1,0 +1,11 @@
+tempo:
+  replicas: 1
+  storage:
+    trace:
+      backend: local
+  persistence:
+    enabled: true
+    size: 2Gi
+
+serviceAccount:
+  create: true
