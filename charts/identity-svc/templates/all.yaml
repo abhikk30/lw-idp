@@ -1,0 +1,7 @@
+{{ include "lw-idp-service.deployment" . }}
+---
+{{ include "lw-idp-service.service" . }}
+---
+{{ include "lw-idp-service.serviceAccount" . }}
+---
+{{ include "lw-idp-service.pdb" . }}

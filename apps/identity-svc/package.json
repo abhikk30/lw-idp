@@ -1,0 +1,26 @@
+{
+  "name": "@lw-idp/identity-svc",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "start": "node dist/src/index.js",
+    "dev": "tsx watch src/index.ts",
+    "clean": "rm -rf dist coverage .turbo"
+  },
+  "dependencies": {
+    "@lw-idp/errors": "workspace:*",
+    "@lw-idp/service-kit": "workspace:*",
+    "@lw-idp/telemetry": "workspace:*"
+  },
+  "devDependencies": {
+    "@lw-idp/config": "workspace:*",
+    "@types/node": "catalog:",
+    "tsx": "4.19.2",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
