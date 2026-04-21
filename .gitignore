@@ -18,7 +18,17 @@ coverage/
 *.tsbuildinfo
 
 # generated
-packages/contracts/dist/
+# Buf-generated .ts in packages/contracts/dist/proto/ IS committed (source of
+# truth for TS consumers). Override the blanket `dist/` rule on line 4 to
+# re-include this one dist tree, then exclude its compiled JS/maps/tsbuildinfo.
+!packages/contracts/dist/
+!packages/contracts/dist/**
+packages/contracts/dist/**/*.js
+packages/contracts/dist/**/*.js.map
+packages/contracts/dist/**/*.tsbuildinfo
+packages/contracts/src/*.js
+packages/contracts/src/*.js.map
+packages/contracts/dist-ts/
 
 # env
 .env.local

@@ -17,6 +17,7 @@ export interface BuildServerOptions {
   host?: string;
   version?: string;
   readyProbes?: ReadyProbe[];
+  register?: (fastify: FastifyInstance) => Promise<void>;
 }
 
 export interface LwIdpServer {
@@ -70,6 +71,10 @@ export async function buildServer(opts: BuildServerOptions): Promise<LwIdpServer
     }
     return { status: "ready", probes: results };
   });
+
+  if (opts.register) {
+    await opts.register(fastify);
+  }
 
   const host = opts.host ?? "0.0.0.0";
 
