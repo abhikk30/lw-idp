@@ -39,15 +39,16 @@ RUN apk add --no-cache jq && \
 RUN pnpm -F "./apps/${SERVICE}" build
 # pnpm deploy creates a standalone directory with all prod deps resolved
 RUN pnpm --filter "./apps/${SERVICE}" deploy --prod /deploy
-# Patch contracts in deploy: copy in-place compiled JS so Node can run without type-stripping
+# Verify the deploy includes the compiled contracts JS (pnpm hardlinks from the
+# source builder stage). If missing — fail loud. Older Dockerfile versions did
+# an explicit cp here; pnpm's default linker makes the deploy dir share inodes
+# with source so that cp was redundant (and actually failed in CI with
+# "are the same file").
 RUN CONTRACTS_DEPLOY=$(find /deploy/node_modules -name "contracts" -type d 2>/dev/null | grep "@lw-idp/contracts$" | head -1) && \
-    if [ -n "$CONTRACTS_DEPLOY" ]; then \
-      echo "Patching contracts at: $CONTRACTS_DEPLOY"; \
-      cp /repo/packages/contracts/src/index.js "$CONTRACTS_DEPLOY/src/"; \
-      cp /repo/packages/contracts/dist/proto/lwidp/identity/v1/identity_pb.js "$CONTRACTS_DEPLOY/dist/proto/lwidp/identity/v1/"; \
-    else \
-      echo "ERROR: contracts deploy dir not found" && exit 1; \
-    fi
+    test -n "$CONTRACTS_DEPLOY" || { echo "ERROR: contracts deploy dir not found" >&2; exit 1; } && \
+    test -f "$CONTRACTS_DEPLOY/src/index.js" || { echo "ERROR: $CONTRACTS_DEPLOY/src/index.js missing" >&2; exit 1; } && \
+    test -f "$CONTRACTS_DEPLOY/dist/proto/lwidp/identity/v1/identity_pb.js" || { echo "ERROR: identity_pb.js missing in deploy" >&2; exit 1; } && \
+    echo "contracts deploy OK at $CONTRACTS_DEPLOY"
 
 FROM node:22-alpine AS runtime
 ARG SERVICE
