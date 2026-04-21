@@ -93,6 +93,31 @@ describe("catalog-svc ConnectRPC", () => {
     await expect(c.getService({ id })).rejects.toThrow(/not.?found/i);
   });
 
+  it("UpdateService with partial fields does not clobber unsent fields", async () => {
+    // Regression test for review C1: proto3 scalar defaults ("" for string,
+    // 0 for enum) were being forwarded unconditionally into updateService and
+    // silently clearing description / lifecycle / repoUrl / tags.
+    const c = client();
+    const created = await c.createService({
+      slug: "partial-update",
+      name: "Partial",
+      description: "original description",
+      type: ServiceType.SERVICE,
+      lifecycle: Lifecycle.PRODUCTION,
+      repoUrl: "https://example.com/repo",
+      tags: ["keep-me"],
+    });
+    const id = created.service?.id ?? "";
+
+    // Send ONLY the name. Every other field should stay unchanged.
+    const upd = await c.updateService({ id, name: "Partial (renamed)" });
+    expect(upd.service?.name).toBe("Partial (renamed)");
+    expect(upd.service?.description).toBe("original description");
+    expect(upd.service?.lifecycle).toBe(Lifecycle.PRODUCTION);
+    expect(upd.service?.repoUrl).toBe("https://example.com/repo");
+    expect(upd.service?.tags).toEqual(["keep-me"]);
+  });
+
   it("SearchServices finds by name/description", async () => {
     const c = client();
     await c.createService({

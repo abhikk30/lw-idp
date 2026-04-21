@@ -157,15 +157,21 @@ export function makeCatalogServiceImpl(
       if (!req.id) {
         throw new ConnectError("id required", Code.InvalidArgument);
       }
+      // Guard every field: proto3 scalar defaults ("" for string, 0 for enum) are
+      // indistinguishable from "client didn't send this field". Only forward fields
+      // the caller actually populated so UpdateService({id, name}) doesn't clobber
+      // description/lifecycle/repoUrl/tags with empty values.
       try {
         const updated = await updateService(deps.db, {
           id: req.id,
           ...(req.name !== "" ? { name: req.name } : {}),
-          description: req.description,
-          lifecycle: dbLifecycle(req.lifecycle),
+          ...(req.description !== "" ? { description: req.description } : {}),
+          ...(req.lifecycle !== Lifecycle.UNSPECIFIED
+            ? { lifecycle: dbLifecycle(req.lifecycle) }
+            : {}),
           ...(req.ownerTeamId !== "" ? { ownerTeamId: req.ownerTeamId } : {}),
-          repoUrl: req.repoUrl,
-          tags: req.tags,
+          ...(req.repoUrl !== "" ? { repoUrl: req.repoUrl } : {}),
+          ...(req.tags.length > 0 ? { tags: req.tags } : {}),
         });
         return { service: await toProtoService(deps.db, updated) };
       } catch (err) {
