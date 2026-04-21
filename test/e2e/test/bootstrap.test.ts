@@ -1,6 +1,17 @@
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createClient } from "@connectrpc/connect";
+import { createConnectTransport } from "@connectrpc/connect-node";
+import { CatalogService, Lifecycle, ServiceType } from "@lw-idp/contracts/catalog/v1";
+import { ClusterService, Environment, Provider } from "@lw-idp/contracts/cluster/v1";
 import { execa } from "execa";
+import {
+  AckPolicy,
+  DeliverPolicy,
+  JSONCodec,
+  type NatsConnection,
+  connect as natsConnect,
+} from "nats";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 // Resolve the monorepo root (test/e2e is two levels below root).
@@ -130,4 +141,154 @@ describe("lw-idp service healthz", () => {
       child.kill("SIGTERM");
     }
   });
+});
+
+describe("catalog-svc + cluster-svc ConnectRPC + NATS events", () => {
+  let catalogPf: ReturnType<typeof execa> | undefined;
+  let clusterPf: ReturnType<typeof execa> | undefined;
+  let natsPf: ReturnType<typeof execa> | undefined;
+  let nc: NatsConnection | undefined;
+
+  const streamName = "IDP_DOMAIN";
+
+  beforeAll(async () => {
+    // Port-forward the three services concurrently
+    catalogPf = execa("kubectl", ["-n", "lw-idp", "port-forward", "svc/catalog-svc", "14002:80"]);
+    clusterPf = execa("kubectl", ["-n", "lw-idp", "port-forward", "svc/cluster-svc", "14003:80"]);
+    natsPf = execa("kubectl", ["-n", "nats-system", "port-forward", "svc/nats", "14222:4222"]);
+    // Suppress unhandled rejections on SIGTERM
+    catalogPf.catch(() => {});
+    clusterPf.catch(() => {});
+    natsPf.catch(() => {});
+    await new Promise((r) => setTimeout(r, 3_000));
+
+    nc = await natsConnect({ servers: "nats://127.0.0.1:14222" });
+    const jsm = await nc.jetstreamManager();
+
+    // Ephemeral consumers for this test run only — unique names avoid collisions.
+    const ts = Date.now();
+    try {
+      await jsm.consumers.add(streamName, {
+        name: `e2e-catalog-${ts}`,
+        filter_subject: "idp.catalog.service.created",
+        ack_policy: AckPolicy.Explicit,
+        deliver_policy: DeliverPolicy.New,
+      });
+    } catch {
+      // stream may already have max-consumers defined; skip if duplicate
+    }
+    try {
+      await jsm.consumers.add(streamName, {
+        name: `e2e-cluster-${ts}`,
+        filter_subject: "idp.cluster.cluster.registered",
+        ack_policy: AckPolicy.Explicit,
+        deliver_policy: DeliverPolicy.New,
+      });
+    } catch {
+      // ignore
+    }
+
+    // Save consumer names for use in tests below via closure
+    (globalThis as { __catalogConsumer__?: string }).__catalogConsumer__ = `e2e-catalog-${ts}`;
+    (globalThis as { __clusterConsumer__?: string }).__clusterConsumer__ = `e2e-cluster-${ts}`;
+  }, 30_000);
+
+  afterAll(async () => {
+    await nc?.drain();
+    catalogPf?.kill("SIGTERM");
+    clusterPf?.kill("SIGTERM");
+    natsPf?.kill("SIGTERM");
+  });
+
+  it("CreateService via ConnectRPC produces idp.catalog.service.created on NATS", async () => {
+    const transport = createConnectTransport({
+      baseUrl: "http://127.0.0.1:14002",
+      httpVersion: "1.1",
+    });
+    const client = createClient(CatalogService, transport);
+
+    const slug = `e2e-svc-${Date.now()}`;
+    const created = await client.createService({
+      slug,
+      name: "E2E Service",
+      description: "end-to-end test",
+      type: ServiceType.SERVICE,
+      lifecycle: Lifecycle.EXPERIMENTAL,
+      tags: ["e2e"],
+    });
+    expect(created.service?.slug).toBe(slug);
+
+    // Pull the event from NATS
+    if (!nc) {
+      throw new Error("NATS connection not established");
+    }
+    const js = nc.jetstream();
+    const consumerName = (globalThis as { __catalogConsumer__?: string }).__catalogConsumer__;
+    if (!consumerName) {
+      throw new Error("catalog consumer name not set");
+    }
+    const consumer = await js.consumers.get(streamName, consumerName);
+    const iter = await consumer.consume({ max_messages: 5 });
+    const codec = JSONCodec();
+    const timer = setTimeout(() => {
+      iter.stop();
+    }, 6_000);
+    let seenSlug: string | undefined;
+    for await (const m of iter) {
+      const env = codec.decode(m.data) as { data?: { slug?: string } };
+      m.ack();
+      if (env.data?.slug === slug) {
+        seenSlug = env.data.slug;
+        break;
+      }
+    }
+    clearTimeout(timer);
+    expect(seenSlug).toBe(slug);
+  }, 30_000);
+
+  it("RegisterCluster via ConnectRPC produces idp.cluster.cluster.registered on NATS", async () => {
+    const transport = createConnectTransport({
+      baseUrl: "http://127.0.0.1:14003",
+      httpVersion: "1.1",
+    });
+    const client = createClient(ClusterService, transport);
+
+    const slug = `e2e-cluster-${Date.now()}`;
+    const registered = await client.registerCluster({
+      slug,
+      name: "E2E Cluster",
+      environment: Environment.DEV,
+      provider: Provider.KIND,
+      apiEndpoint: "https://127.0.0.1:6443",
+      tags: ["e2e"],
+    });
+    expect(registered.cluster?.slug).toBe(slug);
+
+    // Pull the event from NATS
+    if (!nc) {
+      throw new Error("NATS connection not established");
+    }
+    const js = nc.jetstream();
+    const consumerName = (globalThis as { __clusterConsumer__?: string }).__clusterConsumer__;
+    if (!consumerName) {
+      throw new Error("cluster consumer name not set");
+    }
+    const consumer = await js.consumers.get(streamName, consumerName);
+    const iter = await consumer.consume({ max_messages: 5 });
+    const codec = JSONCodec();
+    const timer = setTimeout(() => {
+      iter.stop();
+    }, 6_000);
+    let seenSlug: string | undefined;
+    for await (const m of iter) {
+      const env = codec.decode(m.data) as { data?: { slug?: string } };
+      m.ack();
+      if (env.data?.slug === slug) {
+        seenSlug = env.data.slug;
+        break;
+      }
+    }
+    clearTimeout(timer);
+    expect(seenSlug).toBe(slug);
+  }, 30_000);
 });

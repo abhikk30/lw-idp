@@ -14,5 +14,11 @@
     "execa": "9.5.1",
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "dependencies": {
+    "@connectrpc/connect": "2.1.1",
+    "@connectrpc/connect-node": "2.1.1",
+    "@lw-idp/contracts": "workspace:^",
+    "nats": "2.28.2"
   }
 }
