@@ -1,4 +1,6 @@
 # syntax=docker/dockerfile:1.7
+# SOURCE-OF-TRUTH backend Dockerfile — do not edit per-service copies.
+# Run `./scripts/sync-dockerfiles.sh --write` to propagate changes.
 FROM node:22-alpine AS base
 ARG SERVICE
 ENV SERVICE=${SERVICE}
