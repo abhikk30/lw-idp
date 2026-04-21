@@ -14,7 +14,8 @@
     "@lw-idp/errors": "workspace:*",
     "@lw-idp/telemetry": "workspace:*",
     "fastify": "5.1.0",
-    "fastify-metrics": "12.1.0"
+    "fastify-metrics": "12.1.0",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@lw-idp/config": "workspace:*",

@@ -1,0 +1,79 @@
+syntax = "proto3";
+
+package lwidp.cluster.v1;
+
+import "google/protobuf/timestamp.proto";
+
+service ClusterService {
+  rpc RegisterCluster(RegisterClusterRequest) returns (RegisterClusterResponse);
+  rpc UpdateCluster(UpdateClusterRequest) returns (UpdateClusterResponse);
+  rpc DeregisterCluster(DeregisterClusterRequest) returns (DeregisterClusterResponse);
+  rpc GetCluster(GetClusterRequest) returns (GetClusterResponse);
+  rpc ListClusters(ListClustersRequest) returns (ListClustersResponse);
+}
+
+enum Environment {
+  ENVIRONMENT_UNSPECIFIED = 0;
+  ENVIRONMENT_DEV = 1;
+  ENVIRONMENT_STAGE = 2;
+  ENVIRONMENT_PROD = 3;
+}
+
+enum Provider {
+  PROVIDER_UNSPECIFIED = 0;
+  PROVIDER_DOCKER_DESKTOP = 1;
+  PROVIDER_EKS = 2;
+  PROVIDER_GKE = 3;
+  PROVIDER_AKS = 4;
+  PROVIDER_KIND = 5;
+  PROVIDER_OTHER = 99;
+}
+
+message Cluster {
+  string id = 1;
+  string slug = 2;
+  string name = 3;
+  Environment environment = 4;
+  string region = 5;
+  Provider provider = 6;
+  string api_endpoint = 7;
+  repeated string tags = 8;
+  google.protobuf.Timestamp created_at = 9;
+}
+
+message RegisterClusterRequest {
+  string slug = 1;
+  string name = 2;
+  Environment environment = 3;
+  string region = 4;
+  Provider provider = 5;
+  string api_endpoint = 6;
+  repeated string tags = 7;
+}
+message RegisterClusterResponse { Cluster cluster = 1; }
+
+message UpdateClusterRequest {
+  string id = 1;
+  string name = 2;
+  string region = 3;
+  string api_endpoint = 4;
+  repeated string tags = 5;
+}
+message UpdateClusterResponse { Cluster cluster = 1; }
+
+message DeregisterClusterRequest { string id = 1; }
+message DeregisterClusterResponse {}
+
+message GetClusterRequest { string id = 1; }
+message GetClusterResponse { Cluster cluster = 1; }
+
+message ListClustersRequest {
+  int32 limit = 1;
+  string page_token = 2;
+  Environment environment_filter = 3;
+  Provider provider_filter = 4;
+}
+message ListClustersResponse {
+  repeated Cluster clusters = 1;
+  string next_page_token = 2;
+}

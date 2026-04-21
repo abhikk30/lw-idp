@@ -27,7 +27,7 @@ fi
 echo "  primary pod: ${PRIMARY}"
 
 # List of databases to ensure exist (owner always postgres).
-DATABASES=(identity)
+DATABASES=(identity catalog cluster)
 
 for DB in "${DATABASES[@]}"; do
   echo "  ensuring database: ${DB}"
