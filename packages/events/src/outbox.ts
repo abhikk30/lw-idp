@@ -51,20 +51,23 @@ export function publishOutbox(opts: PublishOutboxOptions): OutboxPublisherHandle
       return;
     }
     try {
-      const unpublished = await opts.db
-        .select()
-        .from(opts.table)
-        .where(isNull(opts.table.publishedAt))
-        .orderBy(asc(opts.table.createdAt))
-        .limit(batch);
+      await opts.db.transaction(async (tx) => {
+        const unpublished = await tx
+          .select()
+          .from(opts.table)
+          .where(isNull(opts.table.publishedAt))
+          .orderBy(asc(opts.table.createdAt))
+          .limit(batch)
+          .for("update", { skipLocked: true });
 
-      for (const row of unpublished) {
-        await opts.js.publish(row.eventType, codec.encode(row.payload));
-        await opts.db
-          .update(opts.table)
-          .set({ publishedAt: new Date() })
-          .where(eq(opts.table.id, row.id));
-      }
+        for (const row of unpublished) {
+          await opts.js.publish(row.eventType, codec.encode(row.payload));
+          await tx
+            .update(opts.table)
+            .set({ publishedAt: new Date() })
+            .where(eq(opts.table.id, row.id));
+        }
+      });
     } catch (err) {
       if (opts.onError) {
         opts.onError(err);
