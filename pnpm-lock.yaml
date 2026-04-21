@@ -401,6 +401,9 @@ importers:
       fastify-metrics:
         specifier: 12.1.0
         version: 12.1.0(fastify@5.1.0)
+      zod:
+        specifier: 'catalog:'
+        version: 3.23.8
     devDependencies:
       '@lw-idp/config':
         specifier: workspace:*
