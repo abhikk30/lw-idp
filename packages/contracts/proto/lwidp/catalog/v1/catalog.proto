@@ -1,0 +1,121 @@
+syntax = "proto3";
+
+package lwidp.catalog.v1;
+
+import "google/protobuf/timestamp.proto";
+
+service CatalogService {
+  rpc CreateService(CreateServiceRequest) returns (CreateServiceResponse);
+  rpc UpdateService(UpdateServiceRequest) returns (UpdateServiceResponse);
+  rpc DeleteService(DeleteServiceRequest) returns (DeleteServiceResponse);
+  rpc GetService(GetServiceRequest) returns (GetServiceResponse);
+  rpc ListServices(ListServicesRequest) returns (ListServicesResponse);
+  rpc SearchServices(SearchServicesRequest) returns (SearchServicesResponse);
+  rpc AddDependency(AddDependencyRequest) returns (AddDependencyResponse);
+  rpc RemoveDependency(RemoveDependencyRequest) returns (RemoveDependencyResponse);
+}
+
+enum ServiceType {
+  SERVICE_TYPE_UNSPECIFIED = 0;
+  SERVICE_TYPE_SERVICE = 1;
+  SERVICE_TYPE_LIBRARY = 2;
+  SERVICE_TYPE_WEBSITE = 3;
+  SERVICE_TYPE_ML = 4;
+  SERVICE_TYPE_JOB = 5;
+}
+
+enum Lifecycle {
+  LIFECYCLE_UNSPECIFIED = 0;
+  LIFECYCLE_EXPERIMENTAL = 1;
+  LIFECYCLE_PRODUCTION = 2;
+  LIFECYCLE_DEPRECATED = 3;
+}
+
+enum DependencyKind {
+  DEPENDENCY_KIND_UNSPECIFIED = 0;
+  DEPENDENCY_KIND_USES = 1;
+  DEPENDENCY_KIND_PROVIDES = 2;
+  DEPENDENCY_KIND_CONSUMES = 3;
+}
+
+message Service {
+  string id = 1;
+  string slug = 2;
+  string name = 3;
+  string description = 4;
+  ServiceType type = 5;
+  Lifecycle lifecycle = 6;
+  string owner_team_id = 7;
+  string repo_url = 8;
+  repeated string tags = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+}
+
+message ServiceDependency {
+  string service_id = 1;
+  string depends_on_service_id = 2;
+  DependencyKind kind = 3;
+}
+
+message CreateServiceRequest {
+  string slug = 1;
+  string name = 2;
+  string description = 3;
+  ServiceType type = 4;
+  Lifecycle lifecycle = 5;
+  string owner_team_id = 6;
+  string repo_url = 7;
+  repeated string tags = 8;
+}
+message CreateServiceResponse { Service service = 1; }
+
+message UpdateServiceRequest {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  Lifecycle lifecycle = 4;
+  string owner_team_id = 5;
+  string repo_url = 6;
+  repeated string tags = 7;
+}
+message UpdateServiceResponse { Service service = 1; }
+
+message DeleteServiceRequest { string id = 1; }
+message DeleteServiceResponse {}
+
+message GetServiceRequest { string id = 1; }
+message GetServiceResponse { Service service = 1; }
+
+message ListServicesRequest {
+  int32 limit = 1;
+  string page_token = 2;
+  ServiceType type_filter = 3;
+  Lifecycle lifecycle_filter = 4;
+  string owner_team_id = 5;
+}
+message ListServicesResponse {
+  repeated Service services = 1;
+  string next_page_token = 2;
+}
+
+message SearchServicesRequest {
+  string query = 1;
+  int32 limit = 2;
+}
+message SearchServicesResponse {
+  repeated Service services = 1;
+}
+
+message AddDependencyRequest {
+  string service_id = 1;
+  string depends_on_service_id = 2;
+  DependencyKind kind = 3;
+}
+message AddDependencyResponse {}
+
+message RemoveDependencyRequest {
+  string service_id = 1;
+  string depends_on_service_id = 2;
+}
+message RemoveDependencyResponse {}

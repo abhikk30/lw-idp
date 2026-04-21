@@ -5,7 +5,9 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./identity/v1": "./dist/proto/lwidp/identity/v1/identity_pb.ts"
+    "./identity/v1": "./dist/proto/lwidp/identity/v1/identity_pb.ts",
+    "./catalog/v1": "./dist/proto/lwidp/catalog/v1/catalog_pb.ts",
+    "./cluster/v1": "./dist/proto/lwidp/cluster/v1/cluster_pb.ts"
   },
   "files": ["dist", "dist-ts", "openapi", "proto", "src"],
   "scripts": {
