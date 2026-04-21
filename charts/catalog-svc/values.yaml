@@ -10,12 +10,8 @@ service:
 replicaCount: 2
 
 resources:
-  requests:
-    cpu: 50m
-    memory: 128Mi
-  limits:
-    cpu: 500m
-    memory: 512Mi
+  requests: { cpu: 50m, memory: 128Mi }
+  limits:   { cpu: 500m, memory: 512Mi }
 
 podDisruptionBudget:
   enabled: true
@@ -30,3 +26,16 @@ probes:
     path: /healthz
   readiness:
     path: /readyz
+
+extraEnv:
+  - name: PG_DSN
+    valueFrom:
+      secretKeyRef:
+        name: catalog-svc-pg
+        key: PG_DSN
+  - name: NATS_URL
+    value: "nats://nats.nats-system.svc.cluster.local:4222"
+  - name: RUN_MIGRATIONS
+    value: "1"
+  - name: OUTBOX_POLL_MS
+    value: "500"
