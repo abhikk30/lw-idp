@@ -9,16 +9,32 @@
     "test": "vitest run",
     "start": "node dist/src/index.js",
     "dev": "tsx watch src/index.ts",
-    "clean": "rm -rf dist coverage .turbo"
+    "clean": "rm -rf dist coverage .turbo",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/db/migrate-cli.ts"
   },
   "dependencies": {
+    "@connectrpc/connect": "2.1.1",
+    "@connectrpc/connect-fastify": "2.1.1",
+    "@connectrpc/connect-node": "2.1.1",
+    "@lw-idp/auth": "workspace:*",
+    "@lw-idp/contracts": "workspace:*",
+    "@lw-idp/db": "workspace:*",
     "@lw-idp/errors": "workspace:*",
+    "@lw-idp/events": "workspace:*",
     "@lw-idp/service-kit": "workspace:*",
-    "@lw-idp/telemetry": "workspace:*"
+    "@lw-idp/telemetry": "workspace:*",
+    "drizzle-orm": "0.36.0",
+    "nats": "2.28.2",
+    "postgres": "3.4.4"
   },
   "devDependencies": {
     "@lw-idp/config": "workspace:*",
+    "@lw-idp/testing": "workspace:*",
     "@types/node": "catalog:",
+    "@types/pg": "8.11.10",
+    "drizzle-kit": "0.28.0",
+    "pg": "8.13.0",
     "tsx": "4.19.2",
     "typescript": "catalog:",
     "vitest": "catalog:"
