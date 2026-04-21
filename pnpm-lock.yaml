@@ -126,22 +126,70 @@ importers:
 
   apps/cluster-svc:
     dependencies:
+      '@bufbuild/protobuf':
+        specifier: 2.11.0
+        version: 2.11.0
+      '@connectrpc/connect':
+        specifier: 2.1.1
+        version: 2.1.1(@bufbuild/protobuf@2.11.0)
+      '@connectrpc/connect-fastify':
+        specifier: 2.1.1
+        version: 2.1.1(@bufbuild/protobuf@2.11.0)(@connectrpc/connect-node@2.1.1(@bufbuild/protobuf@2.11.0)(@connectrpc/connect@2.1.1(@bufbuild/protobuf@2.11.0)))(@connectrpc/connect@2.1.1(@bufbuild/protobuf@2.11.0))(fastify@5.1.0)
+      '@connectrpc/connect-node':
+        specifier: 2.1.1
+        version: 2.1.1(@bufbuild/protobuf@2.11.0)(@connectrpc/connect@2.1.1(@bufbuild/protobuf@2.11.0))
+      '@lw-idp/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
+      '@lw-idp/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@lw-idp/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@lw-idp/errors':
         specifier: workspace:*
         version: link:../../packages/errors
+      '@lw-idp/events':
+        specifier: workspace:*
+        version: link:../../packages/events
       '@lw-idp/service-kit':
         specifier: workspace:*
         version: link:../../packages/service-kit
       '@lw-idp/telemetry':
         specifier: workspace:*
         version: link:../../packages/telemetry
+      drizzle-orm:
+        specifier: 0.36.0
+        version: 0.36.0(@opentelemetry/api@1.9.0)(@types/pg@8.11.10)(@types/react@19.0.1)(pg@8.13.0)(postgres@3.4.4)(react@19.0.0)
+      nats:
+        specifier: 2.28.2
+        version: 2.28.2
+      postgres:
+        specifier: 3.4.4
+        version: 3.4.4
+      zod:
+        specifier: 'catalog:'
+        version: 3.23.8
     devDependencies:
       '@lw-idp/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@lw-idp/testing':
+        specifier: workspace:*
+        version: link:../../packages/testing
       '@types/node':
         specifier: 'catalog:'
         version: 22.7.5
+      '@types/pg':
+        specifier: 8.11.10
+        version: 8.11.10
+      drizzle-kit:
+        specifier: 0.28.0
+        version: 0.28.0
+      pg:
+        specifier: 8.13.0
+        version: 8.13.0
       tsx:
         specifier: 4.19.2
         version: 4.19.2

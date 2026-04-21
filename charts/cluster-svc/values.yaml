@@ -30,3 +30,16 @@ probes:
     path: /healthz
   readiness:
     path: /readyz
+
+extraEnv:
+  - name: PG_DSN
+    valueFrom:
+      secretKeyRef:
+        name: cluster-svc-pg
+        key: PG_DSN
+  - name: NATS_URL
+    value: "nats://nats.nats-system.svc.cluster.local:4222"
+  - name: RUN_MIGRATIONS
+    value: "1"
+  - name: OUTBOX_POLL_MS
+    value: "500"
