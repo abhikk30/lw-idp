@@ -1,10 +1,13 @@
 import { createEnvelope } from "@lw-idp/events";
-import { and, asc, eq, gt } from "drizzle-orm";
+import { and, asc, eq, gt, sql } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import {
   type NewService,
+  type NewServiceDependency,
   type Service,
+  type ServiceDependency,
   outbox,
+  serviceDependencies,
   serviceTags,
   services,
 } from "../db/schema/index.js";
@@ -238,4 +241,127 @@ export async function listServices(
     ? Buffer.from(page[page.length - 1]?.id ?? "", "utf8").toString("base64url")
     : "";
   return { services: page, nextPageToken: next };
+}
+
+export async function searchServices(
+  db: PostgresJsDatabase,
+  opts: { query: string; limit?: number },
+): Promise<Service[]> {
+  const limit = Math.min(Math.max(opts.limit ?? 20, 1), 50);
+  const q = opts.query.trim();
+  if (q.length === 0) {
+    return [];
+  }
+
+  // plainto_tsquery handles arbitrary user input (words + spaces); matches the
+  // search_vector column defined in migration 0001 (name + description + slug, English config).
+  const rows = await db
+    .select()
+    .from(services)
+    .where(sql`search_vector @@ plainto_tsquery('english', ${q})`)
+    .orderBy(sql`ts_rank(search_vector, plainto_tsquery('english', ${q})) desc`)
+    .limit(limit);
+  return rows;
+}
+
+export type DependencyKind = "uses" | "provides" | "consumes";
+
+export interface AddDependencyInput {
+  serviceId: string;
+  dependsOnServiceId: string;
+  kind: DependencyKind;
+  actorUserId?: string;
+}
+
+export async function addDependency(
+  db: PostgresJsDatabase,
+  input: AddDependencyInput,
+): Promise<ServiceDependency> {
+  if (input.serviceId === input.dependsOnServiceId) {
+    throw new Error("service cannot depend on itself");
+  }
+  return db.transaction(async (tx) => {
+    const values: NewServiceDependency = {
+      serviceId: input.serviceId,
+      dependsOnServiceId: input.dependsOnServiceId,
+      kind: input.kind,
+    };
+    const [row] = await tx
+      .insert(serviceDependencies)
+      .values(values)
+      .onConflictDoNothing()
+      .returning();
+    // onConflictDoNothing returns 0 rows when already present — fetch current row
+    if (!row) {
+      const [existing] = await tx
+        .select()
+        .from(serviceDependencies)
+        .where(
+          sql`${serviceDependencies.serviceId} = ${input.serviceId}
+              and ${serviceDependencies.dependsOnServiceId} = ${input.dependsOnServiceId}
+              and ${serviceDependencies.kind} = ${input.kind}`,
+        )
+        .limit(1);
+      if (!existing) {
+        throw new Error("dependency insert failed unexpectedly");
+      }
+      return existing;
+    }
+
+    const envelope = createEnvelope({
+      type: "idp.catalog.service.dependency.added",
+      source: "catalog-svc",
+      data: {
+        serviceId: row.serviceId,
+        dependsOnServiceId: row.dependsOnServiceId,
+        kind: row.kind,
+      },
+      ...(input.actorUserId !== undefined ? { actor: { userId: input.actorUserId } } : {}),
+    });
+    await tx.insert(outbox).values({
+      aggregate: "service_dependency",
+      eventType: envelope.type,
+      payload: envelope,
+    });
+    return row;
+  });
+}
+
+export interface RemoveDependencyInput {
+  serviceId: string;
+  dependsOnServiceId: string;
+  actorUserId?: string;
+}
+
+export async function removeDependency(
+  db: PostgresJsDatabase,
+  input: RemoveDependencyInput,
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    const removed = await tx
+      .delete(serviceDependencies)
+      .where(
+        sql`${serviceDependencies.serviceId} = ${input.serviceId}
+            and ${serviceDependencies.dependsOnServiceId} = ${input.dependsOnServiceId}`,
+      )
+      .returning();
+    if (removed.length === 0) {
+      return;
+    } // idempotent — no-op if missing
+
+    const envelope = createEnvelope({
+      type: "idp.catalog.service.dependency.removed",
+      source: "catalog-svc",
+      data: {
+        serviceId: input.serviceId,
+        dependsOnServiceId: input.dependsOnServiceId,
+      },
+      ...(input.actorUserId !== undefined ? { actor: { userId: input.actorUserId } } : {}),
+    });
+    await tx.insert(outbox).values({
+      aggregate: "service_dependency",
+      eventType: envelope.type,
+      payload: envelope,
+    });
+  });
 }
