@@ -1,6 +1,7 @@
 export * from "./server.js";
 export * from "./shutdown.js";
 export * from "./env.js";
+export * from "./redis.js";
 
 import { type BuildServerOptions, type LwIdpServer, buildServer } from "./server.js";
 import { wireGracefulShutdown } from "./shutdown.js";

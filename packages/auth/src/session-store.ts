@@ -27,14 +27,26 @@ export interface SessionStore {
   close(): Promise<void>;
 }
 
-export interface RedisSessionStoreOptions {
-  url: string;
+/**
+ * Options for `createRedisSessionStore`.
+ *
+ * Exactly one of `url` or `client` must be provided:
+ *  - `url`: the store owns the underlying ioredis client and will `quit()` it
+ *    on `.close()`.
+ *  - `client`: an externally-owned ioredis client (typically constructed via
+ *    `createRedis()` in `@lw-idp/service-kit`). The store will NOT close this
+ *    client on `.close()` — the caller retains lifecycle ownership.
+ */
+export type RedisSessionStoreOptions = {
   keyPrefix?: string;
-  redisOptions?: RedisOptions;
-}
+} & (
+  | { url: string; redisOptions?: RedisOptions; client?: never }
+  | { client: Redis; url?: never; redisOptions?: never }
+);
 
 export function createRedisSessionStore(opts: RedisSessionStoreOptions): SessionStore {
-  const client = new Redis(opts.url, opts.redisOptions ?? {});
+  const owned = opts.client === undefined;
+  const client: Redis = opts.client ?? new Redis(opts.url as string, opts.redisOptions ?? {});
   const prefix = opts.keyPrefix ?? "lw-idp:session:";
 
   return {
@@ -56,7 +68,9 @@ export function createRedisSessionStore(opts: RedisSessionStoreOptions): Session
       await client.del(prefix + key);
     },
     async close() {
-      await client.quit();
+      if (owned) {
+        await client.quit();
+      }
     },
   };
 }
