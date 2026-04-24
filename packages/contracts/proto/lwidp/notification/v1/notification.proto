@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package lwidp.notification.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// NotificationService exposes the notification gRPC surface.
+//
+// P1.6 ships proto stability only — ListRecent and MarkRead handlers return
+// Unimplemented. Real implementations land with P1.7 web portal work.
+service NotificationService {
+  rpc ListRecent(ListRecentRequest) returns (ListRecentResponse);
+  rpc MarkRead(MarkReadRequest) returns (MarkReadResponse);
+}
+
+// NotificationEnvelope is the outbound frame shape pushed over WebSocket.
+// The actual WS frame is JSON; this proto mirrors it for ListRecent responses.
+message NotificationEnvelope {
+  string id = 1;           // ULID from underlying idp.> envelope
+  string type = 2;         // e.g. "idp.catalog.service.created"
+  string entity = 3;       // e.g. "service"
+  string action = 4;       // e.g. "created"
+  string payload_json = 5; // JSON-encoded envelope.data
+  google.protobuf.Timestamp ts = 6;
+  string trace_id = 7;
+}
+
+message ListRecentRequest {
+  string user_id = 1;
+  int32 limit = 2;
+  string page_token = 3;
+}
+message ListRecentResponse {
+  repeated NotificationEnvelope envelopes = 1;
+  string next_page_token = 2;
+}
+
+message MarkReadRequest {
+  string notification_id = 1;
+  string user_id = 2;
+}
+message MarkReadResponse {}
