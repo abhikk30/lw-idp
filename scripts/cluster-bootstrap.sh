@@ -55,6 +55,17 @@ kubectl -n lw-idp create secret generic identity-svc-dex \
   --from-literal=DEX_CLIENT_SECRET="${DEX_CLIENT_SECRET}" \
   --dry-run=client -o yaml | kubectl apply -f -
 
+# gateway-svc-dex (Dex client secret — same value identity-svc uses)
+kubectl -n lw-idp create secret generic gateway-svc-dex \
+  --from-literal=DEX_CLIENT_SECRET="${DEX_CLIENT_SECRET}" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+# gateway-svc-redis (Dragonfly connection string)
+# Dragonfly service is in dragonfly-system namespace, no auth by default on dev profile
+kubectl -n lw-idp create secret generic gateway-svc-redis \
+  --from-literal=REDIS_URL="redis://df.dragonfly-system.svc.cluster.local:6379" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
 echo "==> applying Postgres Cluster CR"
 kubectl apply -f infra/cnpg/cluster.yaml
 kubectl -n lwidp-data wait --for=condition=Ready --timeout=300s cluster/pg
