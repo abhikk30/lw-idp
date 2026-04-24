@@ -18,6 +18,7 @@ export interface BuildServerOptions {
   version?: string;
   readyProbes?: ReadyProbe[];
   register?: (fastify: FastifyInstance) => Promise<void>;
+  onShutdown?: () => Promise<void>;
 }
 
 export interface LwIdpServer {

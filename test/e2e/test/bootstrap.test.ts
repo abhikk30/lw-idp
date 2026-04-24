@@ -1,3 +1,4 @@
+import http from "node:http";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@connectrpc/connect";
@@ -291,4 +292,98 @@ describe("catalog-svc + cluster-svc ConnectRPC + NATS events", () => {
     clearTimeout(timer);
     expect(seenSlug).toBe(slug);
   }, 30_000);
+});
+
+// ---------------------------------------------------------------------------
+// Low-level HTTP helper that lets us set an explicit Host header so that
+// requests through the port-forwarded ingress-nginx controller are routed
+// to the correct virtual host (portal.lw-idp.local).
+// Node's native fetch / undici derives the Host header from the URL authority
+// and silently ignores an explicit override, so we use http.request instead.
+// ---------------------------------------------------------------------------
+function requestWithHost(
+  url: string,
+  host: string,
+  extra?: Record<string, string>,
+): Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string }> {
+  const u = new URL(url);
+  return new Promise((resolve, reject) => {
+    const req = http.request(
+      {
+        hostname: u.hostname,
+        port: u.port,
+        path: u.pathname + u.search,
+        method: "GET",
+        headers: { host, ...(extra ?? {}) },
+      },
+      (res) => {
+        let data = "";
+        res.on("data", (c: Buffer) => {
+          data += c;
+        });
+        res.on("end", () =>
+          resolve({ status: res.statusCode ?? 0, headers: res.headers, body: data }),
+        );
+      },
+    );
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+describe("gateway-svc browser-flow surface via ingress", () => {
+  let ingressPf: ReturnType<typeof execa> | undefined;
+
+  beforeAll(async () => {
+    // Port-forward ingress-nginx controller on 14080:80
+    ingressPf = execa("kubectl", [
+      "-n",
+      "ingress-nginx",
+      "port-forward",
+      "svc/ingress-nginx-controller",
+      "14080:80",
+    ]);
+    // Prevent unhandled SIGTERM rejection from vitest's worker cleanup
+    ingressPf.catch(() => {});
+    await new Promise((r) => setTimeout(r, 3_000));
+  }, 30_000);
+
+  afterAll(() => {
+    ingressPf?.kill("SIGTERM");
+  });
+
+  it("/healthz returns 200 through the ingress", async () => {
+    const res = await requestWithHost("http://127.0.0.1:14080/healthz", "portal.lw-idp.local");
+    expect(res.status).toBe(200);
+    const body = JSON.parse(res.body) as { status: string; service: string };
+    expect(body.status).toBe("ok");
+    expect(body.service).toBe("gateway-svc");
+  });
+
+  it("/auth/login redirects to a Dex authorize URL with PKCE + state", async () => {
+    const res = await requestWithHost("http://127.0.0.1:14080/auth/login", "portal.lw-idp.local");
+    expect(res.status).toBe(302);
+    const loc = (res.headers.location as string) ?? "";
+    expect(loc).toContain("/auth?");
+    expect(loc).toContain("response_type=code");
+    expect(loc).toContain("client_id=lw-idp-gateway");
+    expect(loc).toContain("code_challenge=");
+    expect(loc).toContain("code_challenge_method=S256");
+    expect(loc).toContain("state=");
+  });
+
+  it("/api/v1/me without session cookie returns 401", async () => {
+    const res = await requestWithHost("http://127.0.0.1:14080/api/v1/me", "portal.lw-idp.local");
+    expect(res.status).toBe(401);
+    const body = JSON.parse(res.body) as { code: string };
+    expect(body.code).toBe("unauthorized");
+  });
+
+  it("/api/v1/services without session cookie returns 401", async () => {
+    const res = await requestWithHost(
+      "http://127.0.0.1:14080/api/v1/services",
+      "portal.lw-idp.local",
+    );
+    expect(res.status).toBe(401);
+  });
 });

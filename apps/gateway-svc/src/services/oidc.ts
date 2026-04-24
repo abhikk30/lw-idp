@@ -41,50 +41,6 @@ export function buildAuthorizeUrl(input: BuildAuthorizeUrlInput): string {
   return `${base}/auth?${params.toString()}`;
 }
 
-export interface StateEntry {
-  codeVerifier: string;
-  redirectAfter?: string;
-  nonce?: string;
-}
-
-export interface StateStore {
-  put(key: string, entry: StateEntry): void;
-  take(key: string): StateEntry | undefined;
-}
-
-export interface StateStoreOptions {
-  ttlMs: number;
-}
-
-export function createStateStore(opts: StateStoreOptions): StateStore {
-  const map = new Map<string, { entry: StateEntry; expiresAt: number }>();
-
-  function sweep(): void {
-    const now = Date.now();
-    for (const [k, v] of map) {
-      if (v.expiresAt <= now) {
-        map.delete(k);
-      }
-    }
-  }
-
-  return {
-    put(key, entry) {
-      sweep();
-      map.set(key, { entry, expiresAt: Date.now() + opts.ttlMs });
-    },
-    take(key) {
-      sweep();
-      const hit = map.get(key);
-      if (!hit) {
-        return undefined;
-      }
-      map.delete(key);
-      return hit.entry;
-    },
-  };
-}
-
 export interface ExchangeCodeForTokensInput {
   issuer: string;
   clientId: string;

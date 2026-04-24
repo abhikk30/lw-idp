@@ -49,10 +49,16 @@ for svc in identity catalog cluster; do
     --dry-run=client -o yaml | kubectl apply -f -
 done
 
-# Dex client secret for identity-svc only (catalog/cluster don't need OIDC)
+# gateway-svc-dex (Dex client secret for OIDC code exchange)
 DEX_CLIENT_SECRET=$(kubectl -n dex get secret dex-env -o jsonpath='{.data.GATEWAY_CLIENT_SECRET}' | base64 -d)
-kubectl -n lw-idp create secret generic identity-svc-dex \
+kubectl -n lw-idp create secret generic gateway-svc-dex \
   --from-literal=DEX_CLIENT_SECRET="${DEX_CLIENT_SECRET}" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+# gateway-svc-redis (Dragonfly connection string)
+# Dragonfly service is in dragonfly-system namespace, no auth by default on dev profile
+kubectl -n lw-idp create secret generic gateway-svc-redis \
+  --from-literal=REDIS_URL="redis://df.dragonfly-system.svc.cluster.local:6379" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 echo "==> applying Postgres Cluster CR"

@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./gateway": "./src/gateway.ts",
     "./identity/v1": "./dist/proto/lwidp/identity/v1/identity_pb.ts",
     "./catalog/v1": "./dist/proto/lwidp/catalog/v1/catalog_pb.ts",
     "./cluster/v1": "./dist/proto/lwidp/cluster/v1/cluster_pb.ts"
@@ -12,9 +13,10 @@
   "files": ["dist", "dist-ts", "openapi", "proto", "src"],
   "scripts": {
     "codegen": "buf generate",
+    "openapi:types": "openapi-typescript openapi/gateway.yaml --output dist/openapi/gateway.d.ts",
     "lint": "buf lint",
     "breaking": "buf breaking --against '.git#branch=main'",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && pnpm openapi:types",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "echo 'no tests yet'",
     "clean": "rm -rf dist .turbo"
@@ -26,6 +28,7 @@
   "devDependencies": {
     "@lw-idp/config": "workspace:*",
     "@bufbuild/protoc-gen-es": "2.11.0",
+    "openapi-typescript": "7.4.4",
     "typescript": "catalog:"
   }
 }

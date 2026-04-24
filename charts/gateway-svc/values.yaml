@@ -10,12 +10,8 @@ service:
 replicaCount: 2
 
 resources:
-  requests:
-    cpu: 50m
-    memory: 128Mi
-  limits:
-    cpu: 500m
-    memory: 512Mi
+  requests: { cpu: 50m, memory: 128Mi }
+  limits:   { cpu: 500m, memory: 512Mi }
 
 podDisruptionBudget:
   enabled: true
@@ -30,3 +26,53 @@ probes:
     path: /healthz
   readiness:
     path: /readyz
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "2m"
+  hosts:
+    - host: portal.lw-idp.local
+      paths:
+        - path: /
+          pathType: Prefix
+
+extraEnv:
+  - name: IDENTITY_SVC_URL
+    value: "http://identity-svc.lw-idp.svc.cluster.local"
+  - name: CATALOG_SVC_URL
+    value: "http://catalog-svc.lw-idp.svc.cluster.local"
+  - name: CLUSTER_SVC_URL
+    value: "http://cluster-svc.lw-idp.svc.cluster.local"
+  - name: REDIS_URL
+    valueFrom:
+      secretKeyRef:
+        name: gateway-svc-redis
+        key: REDIS_URL
+  - name: DEX_ISSUER
+    value: "http://dex.dex.svc.cluster.local:5556"
+  - name: DEX_AUDIENCE
+    value: "lw-idp-gateway"
+  - name: DEX_CLIENT_ID
+    value: "lw-idp-gateway"
+  - name: DEX_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: gateway-svc-dex
+        key: DEX_CLIENT_SECRET
+  - name: DEX_JWKS_PATH
+    value: "/keys"
+  - name: GATEWAY_REDIRECT_URI
+    value: "http://portal.lw-idp.local/auth/callback"
+  - name: SESSION_SECURE
+    value: "false"
+  - name: SESSION_TTL_SECONDS
+    value: "28800"
+  - name: RATELIMIT_MAX
+    value: "600"
+  - name: RATELIMIT_WINDOW_MS
+    value: "60000"
+  - name: IDEMPOTENCY_TTL_SECONDS
+    value: "86400"

@@ -1,6 +1,19 @@
 import type { LwIdpServer } from "./server.js";
 
-export function wireGracefulShutdown(server: LwIdpServer, timeoutMs = 10_000): void {
+export interface ShutdownOptions {
+  onShutdown?: () => Promise<void>;
+  timeoutMs?: number;
+}
+
+export async function runShutdown(server: LwIdpServer, opts: ShutdownOptions = {}): Promise<void> {
+  if (opts.onShutdown) {
+    await opts.onShutdown();
+  }
+  await server.close();
+}
+
+export function wireGracefulShutdown(server: LwIdpServer, opts: ShutdownOptions = {}): void {
+  const timeoutMs = opts.timeoutMs ?? 15_000;
   const signals: NodeJS.Signals[] = ["SIGTERM", "SIGINT"];
   let shuttingDown = false;
   for (const sig of signals) {
@@ -16,10 +29,10 @@ export function wireGracefulShutdown(server: LwIdpServer, timeoutMs = 10_000): v
       }, timeoutMs);
       timer.unref();
       try {
-        await server.close();
+        await runShutdown(server, opts);
         process.exit(0);
       } catch (err) {
-        server.fastify.log.error({ err }, "error during close");
+        server.fastify.log.error({ err }, "error during shutdown");
         process.exit(1);
       }
     });

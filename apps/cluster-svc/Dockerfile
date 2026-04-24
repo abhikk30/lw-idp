@@ -15,7 +15,7 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --prefer-offline
 
 FROM deps AS builder
-# Build all workspace lib packages that identity-svc depends on
+# Build all workspace lib packages that backend services depend on
 RUN pnpm --filter "@lw-idp/errors" \
         --filter "@lw-idp/telemetry" \
         --filter "@lw-idp/service-kit" \
@@ -53,6 +53,9 @@ RUN CONTRACTS_DEPLOY=$(find /deploy/node_modules -name "contracts" -type d 2>/de
     test -f "$CONTRACTS_DEPLOY/dist/proto/lwidp/catalog/v1/catalog_pb.js" || { echo "ERROR: catalog_pb.js missing in deploy" >&2; exit 1; } && \
     test -f "$CONTRACTS_DEPLOY/dist/proto/lwidp/cluster/v1/cluster_pb.js" || { echo "ERROR: cluster_pb.js missing in deploy" >&2; exit 1; } && \
     echo "contracts deploy OK at $CONTRACTS_DEPLOY"
+# Ensure migrations dir exists so the COPY below is always valid (no-op for
+# services that don't use DB migrations, e.g. gateway-svc).
+RUN mkdir -p /repo/apps/${SERVICE}/src/db/migrations
 
 FROM node:22-alpine AS runtime
 ARG SERVICE

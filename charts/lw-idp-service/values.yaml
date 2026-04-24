@@ -33,3 +33,10 @@ probes:
     path: /healthz
   readiness:
     path: /readyz
+
+ingress:
+  enabled: false
+  className: nginx
+  annotations: {}
+  hosts: []
+  tls: []
