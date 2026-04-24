@@ -4,5 +4,11 @@
     "rootDir": "../..",
     "noEmit": true
   },
-  "include": ["src", "test", "../identity-svc/src/**/*"]
+  "include": [
+    "src",
+    "test",
+    "../identity-svc/src/**/*",
+    "../catalog-svc/src/**/*",
+    "../cluster-svc/src/**/*"
+  ]
 }

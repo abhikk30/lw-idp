@@ -115,6 +115,7 @@ const authPluginFn: FastifyPluginAsync<AuthPluginOptions> = async (
       const sid = newSessionId();
       const sessionRecord: SessionRecord = {
         userId: user.id,
+        subject: user.subject,
         email: user.email,
         displayName: user.displayName,
         teams: teams.map((t) => ({ id: t.id, slug: t.slug, name: t.name })),

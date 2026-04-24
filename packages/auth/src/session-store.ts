@@ -8,6 +8,7 @@ export interface TeamRef {
 
 export interface SessionRecord {
   userId: string;
+  subject?: string;
   email: string;
   displayName: string;
   avatarUrl?: string;
