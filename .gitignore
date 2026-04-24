@@ -18,6 +18,13 @@ coverage/
 *.tsbuildinfo
 
 # generated
+# Guard against tsc accidentally emitting .js into app src/ directories when
+# tsconfig.test.json is run with rootDir set above the app root.
+apps/*/src/**/*.js
+apps/*/src/**/*.js.map
+apps/*/src/**/*.d.ts
+apps/*/src/**/*.d.ts.map
+
 # Buf-generated .ts in packages/contracts/dist/proto/ IS committed (source of
 # truth for TS consumers). Override the blanket `dist/` rule on line 4 to
 # re-include this one dist tree, then exclude its compiled JS/maps/tsbuildinfo.
