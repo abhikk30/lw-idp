@@ -1,10 +1,403 @@
 openapi: 3.1.0
 info:
   title: lw-idp Gateway API
-  version: 0.0.0
-  description: External REST surface of the lw-idp gateway service.
+  version: 0.1.0
+  description: External REST surface of the lw-idp gateway-svc BFF.
 servers:
   - url: /api/v1
-paths: {}
+
+security:
+  - sessionCookie: []
+
+tags:
+  - name: auth
+  - name: me
+  - name: services
+  - name: clusters
+  - name: teams
+
+paths:
+  /me:
+    get:
+      tags: [me]
+      summary: Get current user + teams
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Me" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /services:
+    get:
+      tags: [services]
+      summary: List services
+      security:
+        - sessionCookie: []
+      parameters:
+        - { name: q,        in: query, required: false, schema: { type: string } }
+        - { name: team,     in: query, required: false, schema: { type: string } }
+        - { name: type,     in: query, required: false, schema: { $ref: "#/components/schemas/ServiceType" } }
+        - { name: lifecycle, in: query, required: false, schema: { $ref: "#/components/schemas/ServiceLifecycle" } }
+        - { name: limit,    in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: cursor,   in: query, required: false, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ServiceList" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      tags: [services]
+      summary: Register a service
+      security:
+        - sessionCookie: []
+      parameters:
+        - { name: Idempotency-Key, in: header, required: false, schema: { type: string, maxLength: 128 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ServiceCreate" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Service" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /services/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [services]
+      summary: Get a service
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Service" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    patch:
+      tags: [services]
+      summary: Update a service
+      security:
+        - sessionCookie: []
+      parameters:
+        - { name: Idempotency-Key, in: header, required: false, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ServiceUpdate" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Service" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    delete:
+      tags: [services]
+      summary: Delete a service
+      security:
+        - sessionCookie: []
+      parameters:
+        - { name: Idempotency-Key, in: header, required: false, schema: { type: string } }
+      responses:
+        "204": { description: Deleted }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /clusters:
+    get:
+      tags: [clusters]
+      summary: List clusters
+      security:
+        - sessionCookie: []
+      parameters:
+        - { name: env,      in: query, required: false, schema: { $ref: "#/components/schemas/Environment" } }
+        - { name: provider, in: query, required: false, schema: { $ref: "#/components/schemas/Provider" } }
+        - { name: limit,    in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: cursor,   in: query, required: false, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClusterList" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      tags: [clusters]
+      summary: Register a cluster
+      security:
+        - sessionCookie: []
+      parameters:
+        - { name: Idempotency-Key, in: header, required: false, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClusterCreate" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cluster" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /clusters/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [clusters]
+      summary: Get a cluster
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cluster" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [clusters]
+      summary: Update a cluster
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClusterUpdate" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cluster" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [clusters]
+      summary: Deregister a cluster
+      security:
+        - sessionCookie: []
+      responses:
+        "204": { description: Deleted }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /teams:
+    get:
+      tags: [teams]
+      summary: List teams
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TeamList" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
 components:
-  schemas: {}
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: lw-sid
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    Unauthorized:
+      description: Unauthorized
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    NotFound:
+      description: Not found
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    Conflict:
+      description: Conflict
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    RateLimited:
+      description: Too many requests
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:    { type: string, enum: [bad_request, unauthorized, forbidden, not_found, conflict, rate_limited, internal, unavailable] }
+        message: { type: string }
+        details: { type: object, additionalProperties: true }
+
+    ServiceType:
+      type: string
+      enum: [service, library, website, ml, job]
+
+    ServiceLifecycle:
+      type: string
+      enum: [experimental, production, deprecated]
+
+    Me:
+      type: object
+      required: [user, teams]
+      properties:
+        user:
+          type: object
+          required: [id, subject, email, displayName]
+          properties:
+            id:          { type: string, format: uuid }
+            subject:     { type: string }
+            email:       { type: string, format: email }
+            displayName: { type: string }
+            avatarUrl:   { type: string }
+        teams:
+          type: array
+          items: { $ref: "#/components/schemas/TeamRef" }
+
+    TeamRef:
+      type: object
+      required: [id, slug, name]
+      properties:
+        id:   { type: string, format: uuid }
+        slug: { type: string, pattern: "^[a-z0-9-]+$" }
+        name: { type: string }
+
+    TeamList:
+      type: object
+      required: [teams]
+      properties:
+        teams:
+          type: array
+          items: { $ref: "#/components/schemas/TeamRef" }
+
+    Service:
+      type: object
+      required: [id, slug, name, type, lifecycle]
+      properties:
+        id:          { type: string, format: uuid }
+        slug:        { type: string, pattern: "^[a-z0-9-]+$" }
+        name:        { type: string }
+        description: { type: string }
+        type:        { $ref: "#/components/schemas/ServiceType" }
+        lifecycle:   { $ref: "#/components/schemas/ServiceLifecycle" }
+        ownerTeamId: { type: string, format: uuid }
+        repoUrl:     { type: string }
+        tags:
+          type: array
+          items: { type: string }
+        createdAt:   { type: string, format: date-time }
+        updatedAt:   { type: string, format: date-time }
+
+    ServiceCreate:
+      type: object
+      required: [slug, name, type]
+      properties:
+        slug:        { type: string, pattern: "^[a-z0-9-]+$" }
+        name:        { type: string, minLength: 1 }
+        description: { type: string }
+        type:        { $ref: "#/components/schemas/ServiceType" }
+        lifecycle:   { $ref: "#/components/schemas/ServiceLifecycle" }
+        ownerTeamId: { type: string, format: uuid }
+        repoUrl:     { type: string }
+        tags:
+          type: array
+          items: { type: string }
+
+    ServiceUpdate:
+      type: object
+      properties:
+        name:        { type: string }
+        description: { type: string }
+        lifecycle:   { $ref: "#/components/schemas/ServiceLifecycle" }
+        ownerTeamId: { type: string, format: uuid }
+        repoUrl:     { type: string }
+        tags:
+          type: array
+          items: { type: string }
+
+    ServiceList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Service" }
+        nextCursor: { type: string }
+
+    Environment:
+      type: string
+      enum: [dev, stage, prod]
+
+    Provider:
+      type: string
+      enum: [docker-desktop, eks, gke, aks, kind, other]
+
+    Cluster:
+      type: object
+      required: [id, slug, name, environment, provider]
+      properties:
+        id:          { type: string, format: uuid }
+        slug:        { type: string, pattern: "^[a-z0-9-]+$" }
+        name:        { type: string }
+        environment: { $ref: "#/components/schemas/Environment" }
+        region:      { type: string }
+        provider:    { $ref: "#/components/schemas/Provider" }
+        apiEndpoint: { type: string }
+        tags:
+          type: array
+          items: { type: string }
+        createdAt:   { type: string, format: date-time }
+
+    ClusterCreate:
+      type: object
+      required: [slug, name, environment, provider]
+      properties:
+        slug:        { type: string, pattern: "^[a-z0-9-]+$" }
+        name:        { type: string, minLength: 1 }
+        environment: { $ref: "#/components/schemas/Environment" }
+        region:      { type: string }
+        provider:    { $ref: "#/components/schemas/Provider" }
+        apiEndpoint: { type: string }
+        tags:
+          type: array
+          items: { type: string }
+
+    ClusterUpdate:
+      type: object
+      properties:
+        name:        { type: string }
+        region:      { type: string }
+        apiEndpoint: { type: string }
+        tags:
+          type: array
+          items: { type: string }
+
+    ClusterList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Cluster" }
+        nextCursor: { type: string }
