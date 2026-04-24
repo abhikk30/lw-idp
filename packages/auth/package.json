@@ -12,12 +12,15 @@
   },
   "dependencies": {
     "cookie": "1.0.1",
+    "ioredis": "5.4.2",
     "jose": "5.9.6",
     "ulid": "2.3.0",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@lw-idp/config": "workspace:*",
+    "@lw-idp/testing": "workspace:*",
+    "@types/node": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }
