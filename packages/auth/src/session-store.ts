@@ -12,6 +12,23 @@ export interface SessionRecord {
   email: string;
   displayName: string;
   avatarUrl?: string;
+  /**
+   * Team memberships at the moment this session was written (login).
+   *
+   * Trust model: snapshot-on-login. Not refreshed mid-session. Next refresh
+   * happens on the next /auth/login → /auth/callback cycle. Session TTL
+   * (SESSION_TTL_SECONDS, default 8h) bounds staleness.
+   *
+   * Consumers:
+   *  - notification-svc authorization filter — trusts this snapshot for WS
+   *    event authorization (cheap, reads session from Dragonfly).
+   *  - gateway-svc GET /api/v1/me — re-fetches live from identity-svc for
+   *    accuracy in the one UI surface that displays teams prominently.
+   *
+   * If a team membership change must take effect sooner, call
+   *   sessionStore.delete(sid)
+   * to force the next request to re-login. Out of scope for P1.6.
+   */
   teams: TeamRef[];
   createdAt: string;
 }
