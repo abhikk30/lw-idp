@@ -360,12 +360,18 @@ importers:
 
   apps/notification-svc:
     dependencies:
+      '@lw-idp/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@lw-idp/db':
         specifier: workspace:*
         version: link:../../packages/db
       '@lw-idp/errors':
         specifier: workspace:*
         version: link:../../packages/errors
+      '@lw-idp/events':
+        specifier: workspace:*
+        version: link:../../packages/events
       '@lw-idp/service-kit':
         specifier: workspace:*
         version: link:../../packages/service-kit
@@ -378,6 +384,9 @@ importers:
       postgres:
         specifier: 3.4.4
         version: 3.4.4
+      zod:
+        specifier: 'catalog:'
+        version: 3.23.8
     devDependencies:
       '@lw-idp/config':
         specifier: workspace:*

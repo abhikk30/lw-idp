@@ -13,12 +13,15 @@
     "db:migrate": "tsx src/db/migrate-cli.ts"
   },
   "dependencies": {
+    "@lw-idp/auth": "workspace:*",
     "@lw-idp/db": "workspace:*",
     "@lw-idp/errors": "workspace:*",
+    "@lw-idp/events": "workspace:*",
     "@lw-idp/service-kit": "workspace:*",
     "@lw-idp/telemetry": "workspace:*",
     "drizzle-orm": "0.36.0",
-    "postgres": "3.4.4"
+    "postgres": "3.4.4",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@lw-idp/config": "workspace:*",
