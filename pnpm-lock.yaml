@@ -275,6 +275,9 @@ importers:
       ulid:
         specifier: 2.3.0
         version: 2.3.0
+      zod:
+        specifier: 'catalog:'
+        version: 3.23.8
     devDependencies:
       '@lw-idp/config':
         specifier: workspace:*
