@@ -103,7 +103,10 @@ describe("gateway GET /api/v1/me", () => {
       .setExpirationTime("5m")
       .sign(privateKey);
     const verifyResult = await identityClient.verifyToken({ idToken });
-    userId = verifyResult.user?.id;
+    if (!verifyResult.user) {
+      throw new Error("identity.VerifyToken returned no user");
+    }
+    userId = verifyResult.user.id;
 
     // 5. Pre-seed a session so we can skip the full auth flow
     sessionStore = memorySession();
