@@ -15,7 +15,9 @@
   "dependencies": {
     "@testcontainers/nats": "10.13.2",
     "@testcontainers/postgresql": "10.13.2",
-    "testcontainers": "10.13.2"
+    "@types/ws": "^8.5.14",
+    "testcontainers": "10.13.2",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@lw-idp/config": "workspace:*",
