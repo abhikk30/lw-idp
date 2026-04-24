@@ -29,11 +29,14 @@ export function createRedisStateStore(opts: RedisStateStoreOptions): StateStore 
       await client.set(prefix + key, JSON.stringify(entry), "EX", ttl);
     },
     async take(key) {
-      const raw = await client.get(prefix + key);
+      // Atomic read-and-delete in a single round-trip (Redis 6.2+, Dragonfly-compatible).
+      // Non-atomic GET+DEL would allow an OIDC state-replay window where two concurrent
+      // /auth/callback calls with the same state could both read the entry before one
+      // of them deletes it.
+      const raw = (await client.call("GETDEL", prefix + key)) as string | null;
       if (!raw) {
         return undefined;
       }
-      await client.del(prefix + key);
       try {
         return JSON.parse(raw) as StateEntry;
       } catch {

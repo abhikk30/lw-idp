@@ -43,7 +43,10 @@ async function sessionPluginFn(
 
     const isPublic = publicPrefixes.some((p) => req.url === p || req.url.startsWith(p));
     if (!isPublic && !req.session) {
-      await reply.code(401).send({ code: "unauthorized", message: "authentication required" });
+      // Return the reply so Fastify short-circuits subsequent preHandler hooks
+      // (rate-limit, idempotency). Without the return, unauth requests still
+      // consume rate-limit budget and hit Dragonfly for idempotency lookups.
+      return reply.code(401).send({ code: "unauthorized", message: "authentication required" });
     }
   });
 }
