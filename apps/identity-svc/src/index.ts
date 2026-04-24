@@ -6,8 +6,6 @@ import { connect as natsConnect } from "nats";
 import { loadConfig } from "./config.js";
 import { outbox } from "./db/schema/index.js";
 import { registerConnectRpc } from "./grpc/plugin.js";
-import { registerAuthRoutes } from "./http/auth.js";
-import { createStateStore } from "./services/oidc.js";
 
 const env = loadConfig();
 
@@ -22,7 +20,6 @@ const verifier = createOidcVerifier({
   audience: env.DEX_AUDIENCE,
   jwksPath: "/keys",
 });
-const stateStore = createStateStore({ ttlMs: 10 * 60_000 });
 
 const nc = await natsConnect({ servers: env.NATS_URL });
 const js = nc.jetstream();
@@ -58,21 +55,5 @@ await startServer({
   port: env.PORT,
   register: async (fastify) => {
     await registerConnectRpc(fastify, { db, verifier });
-    await registerAuthRoutes(fastify, {
-      db,
-      verifier,
-      stateStore,
-      oidc: {
-        issuer: env.DEX_ISSUER,
-        clientId: env.DEX_CLIENT_ID,
-        clientSecret: env.DEX_CLIENT_SECRET,
-        redirectUri: env.GATEWAY_REDIRECT_URI,
-        scopes: ["openid", "email", "profile"],
-      },
-      cookie: {
-        secure: env.SESSION_SECURE,
-        maxAgeSeconds: 8 * 60 * 60,
-      },
-    });
   },
 });

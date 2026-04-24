@@ -49,13 +49,8 @@ for svc in identity catalog cluster; do
     --dry-run=client -o yaml | kubectl apply -f -
 done
 
-# Dex client secret for identity-svc only (catalog/cluster don't need OIDC)
+# gateway-svc-dex (Dex client secret for OIDC code exchange)
 DEX_CLIENT_SECRET=$(kubectl -n dex get secret dex-env -o jsonpath='{.data.GATEWAY_CLIENT_SECRET}' | base64 -d)
-kubectl -n lw-idp create secret generic identity-svc-dex \
-  --from-literal=DEX_CLIENT_SECRET="${DEX_CLIENT_SECRET}" \
-  --dry-run=client -o yaml | kubectl apply -f -
-
-# gateway-svc-dex (Dex client secret — same value identity-svc uses)
 kubectl -n lw-idp create secret generic gateway-svc-dex \
   --from-literal=DEX_CLIENT_SECRET="${DEX_CLIENT_SECRET}" \
   --dry-run=client -o yaml | kubectl apply -f -

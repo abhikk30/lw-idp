@@ -7,12 +7,7 @@ service:
   port: 80
   targetPort: 4001
 
-# Single replica while identity-svc owns the in-memory PKCE state store +
-# temporary /auth/login + /auth/callback routes. Two replicas split the state
-# store so a callback hitting a different pod than the login fails with
-# "invalid state". When these routes move to gateway-svc in Plan 1.5 and state
-# moves to Dragonfly, this scales back to 2.
-replicaCount: 1
+replicaCount: 2
 
 resources:
   requests:
@@ -48,17 +43,6 @@ extraEnv:
     value: "http://dex.dex.svc.cluster.local:5556"
   - name: DEX_AUDIENCE
     value: "lw-idp-gateway"
-  - name: DEX_CLIENT_ID
-    value: "lw-idp-gateway"
-  - name: DEX_CLIENT_SECRET
-    valueFrom:
-      secretKeyRef:
-        name: identity-svc-dex
-        key: DEX_CLIENT_SECRET
-  - name: GATEWAY_REDIRECT_URI
-    value: "http://identity-svc.lw-idp.svc.cluster.local/auth/callback"
-  - name: SESSION_SECURE
-    value: "false"
   - name: RUN_MIGRATIONS
     value: "1"
   - name: OUTBOX_POLL_MS

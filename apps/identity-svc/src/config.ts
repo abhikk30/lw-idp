@@ -10,13 +10,6 @@ const EnvSchema = z.object({
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
   DEX_ISSUER: z.string().min(1),
   DEX_AUDIENCE: z.string().default("lw-idp-gateway"),
-  DEX_CLIENT_ID: z.string().default("lw-idp-gateway"),
-  DEX_CLIENT_SECRET: z.string().min(1),
-  GATEWAY_REDIRECT_URI: z.string().min(1),
-  SESSION_SECURE: z
-    .string()
-    .optional()
-    .transform((s: string | undefined) => s === "true"),
 });
 
 export type IdentityEnv = z.infer<typeof EnvSchema>;
