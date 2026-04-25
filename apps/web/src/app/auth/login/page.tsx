@@ -34,14 +34,46 @@ interface PageProps {
   searchParams: Promise<{ redirect?: string }>;
 }
 
+/**
+ * Returns true iff `value` is a safe same-origin redirect target.
+ * Allows: leading-slash absolute paths only.
+ * Rejects: absolute URLs, protocol-relative URLs (//evil.com), bare paths,
+ *   and anything that doesn't start with a single `/`.
+ *
+ * Defense-in-depth against open-redirect: gateway-svc currently calls
+ * `reply.redirect(redirectAfter)` without validation, so we refuse to
+ * forward anything that isn't a same-origin path. The deeper fix lives
+ * on gateway-svc (filed as P1.8 IMP); this is web's contribution to
+ * not creating the vector in the first place.
+ */
+function isSafeRedirect(value: string): boolean {
+  if (typeof value !== "string" || value.length === 0) {
+    return false;
+  }
+  // Reject protocol-relative URLs first (//evil.com)
+  if (value.startsWith("//")) {
+    return false;
+  }
+  // Reject absolute URLs (http:, https:, javascript:, data:, etc.)
+  if (/^[a-z][a-z0-9+\-.]*:/i.test(value)) {
+    return false;
+  }
+  // Must start with `/` for an absolute same-origin path.
+  if (!value.startsWith("/")) {
+    return false;
+  }
+  return true;
+}
+
 async function startLogin(formData: FormData): Promise<void> {
   "use server";
-  const redirectAfter = formData.get("redirect");
+  const raw = formData.get("redirect");
+  const redirectAfter = typeof raw === "string" && isSafeRedirect(raw) ? raw : null;
   // Same-origin redirect to /auth/login. Through portal.lw-idp.local ingress,
   // /auth/* routes to gateway-svc (post-G2). The `&via=web` is a no-op
   // tracer so we can tell button-clicks from direct deep-links in logs.
   const target =
-    typeof redirectAfter === "string" && redirectAfter.length > 0
+    redirectAfter !== null
       ? `/auth/login?redirect=${encodeURIComponent(redirectAfter)}&via=web`
       : "/auth/login?via=web";
   redirect(target);
@@ -49,6 +81,8 @@ async function startLogin(formData: FormData): Promise<void> {
 
 export default async function LoginPage({ searchParams }: PageProps): Promise<React.ReactNode> {
   const { redirect: redirectAfter } = await searchParams;
+  const safeRedirect =
+    typeof redirectAfter === "string" && isSafeRedirect(redirectAfter) ? redirectAfter : null;
   return (
     <main className="flex min-h-screen items-center justify-center p-6">
       <Card className="w-full max-w-md">
@@ -60,7 +94,9 @@ export default async function LoginPage({ searchParams }: PageProps): Promise<Re
         </CardHeader>
         <CardContent>
           <form action={startLogin} className="flex flex-col gap-4">
-            {redirectAfter ? <input type="hidden" name="redirect" value={redirectAfter} /> : null}
+            {safeRedirect !== null ? (
+              <input type="hidden" name="redirect" value={safeRedirect} />
+            ) : null}
             <Button type="submit" size="lg" className="w-full">
               Sign in with GitHub
             </Button>
