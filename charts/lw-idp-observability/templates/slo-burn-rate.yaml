@@ -1,0 +1,152 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: lw-idp-slo-burn-rate
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "lw-idp-observability.labels" . | nindent 4 }}
+    release: kube-prometheus-stack
+    prometheus: kube-prometheus
+spec:
+  groups:
+    - name: lw-idp.slo.gateway-svc
+      interval: 30s
+      rules:
+        # gateway-svc: 99.9% HTTP 2xx ratio SLO
+        - alert: GatewaySvcSloFastBurn
+          expr: |
+            (
+              (1 - avg(lwidp:success_ratio:5m{kubernetes_pod_name=~"gateway-svc-.*"}))
+              > (14.4 * 0.001)
+              and
+              (1 - avg(lwidp:success_ratio:1h{kubernetes_pod_name=~"gateway-svc-.*"}))
+              > (14.4 * 0.001)
+            )
+          for: 2m
+          labels:
+            severity: page
+            service: gateway-svc
+            slo: http-2xx-ratio
+          annotations:
+            summary: "gateway-svc fast burn (1h) — 99.9% SLO"
+            description: "gateway-svc HTTP 2xx ratio is burning >14.4× error budget in both the 5m and 1h windows."
+        - alert: GatewaySvcSloSlowBurn
+          expr: |
+            (
+              (1 - avg(lwidp:success_ratio:30m{kubernetes_pod_name=~"gateway-svc-.*"}))
+              > (6 * 0.001)
+              and
+              (1 - avg(lwidp:success_ratio:6h{kubernetes_pod_name=~"gateway-svc-.*"}))
+              > (6 * 0.001)
+            )
+          for: 15m
+          labels:
+            severity: warn
+            service: gateway-svc
+            slo: http-2xx-ratio
+          annotations:
+            summary: "gateway-svc slow burn (6h) — 99.9% SLO"
+            description: "gateway-svc HTTP 2xx ratio is burning >6× error budget over the slow window pair."
+
+    - name: lw-idp.slo.identity-svc
+      interval: 30s
+      rules:
+        # identity-svc: 99.95% gRPC success ratio
+        - alert: IdentitySvcSloFastBurn
+          expr: |
+            (
+              (1 - avg(lwidp:success_ratio:5m{kubernetes_pod_name=~"identity-svc-.*"}))
+              > (28.8 * 0.0005)
+              and
+              (1 - avg(lwidp:success_ratio:1h{kubernetes_pod_name=~"identity-svc-.*"}))
+              > (28.8 * 0.0005)
+            )
+          for: 2m
+          labels:
+            severity: page
+            service: identity-svc
+            slo: grpc-success-ratio
+          annotations:
+            summary: "identity-svc fast burn (1h) — 99.95% SLO"
+            description: "identity-svc gRPC success ratio is burning >28.8× error budget."
+        - alert: IdentitySvcSloSlowBurn
+          expr: |
+            (
+              (1 - avg(lwidp:success_ratio:30m{kubernetes_pod_name=~"identity-svc-.*"}))
+              > (6 * 0.0005)
+              and
+              (1 - avg(lwidp:success_ratio:6h{kubernetes_pod_name=~"identity-svc-.*"}))
+              > (6 * 0.0005)
+            )
+          for: 15m
+          labels:
+            severity: warn
+            service: identity-svc
+            slo: grpc-success-ratio
+          annotations:
+            summary: "identity-svc slow burn (6h) — 99.95% SLO"
+            description: "identity-svc gRPC success ratio is burning >6× error budget over the slow window pair."
+
+    - name: lw-idp.slo.catalog-svc
+      interval: 30s
+      rules:
+        - alert: CatalogSvcSloFastBurn
+          expr: |
+            (
+              (1 - avg(lwidp:success_ratio:5m{kubernetes_pod_name=~"catalog-svc-.*"}))
+              > (28.8 * 0.0005)
+              and
+              (1 - avg(lwidp:success_ratio:1h{kubernetes_pod_name=~"catalog-svc-.*"}))
+              > (28.8 * 0.0005)
+            )
+          for: 2m
+          labels: { severity: page, service: catalog-svc, slo: grpc-success-ratio }
+          annotations:
+            summary: "catalog-svc fast burn (1h) — 99.95% SLO"
+            description: "catalog-svc gRPC success ratio is burning >28.8× error budget."
+        - alert: CatalogSvcSloSlowBurn
+          expr: |
+            (
+              (1 - avg(lwidp:success_ratio:30m{kubernetes_pod_name=~"catalog-svc-.*"}))
+              > (6 * 0.0005)
+              and
+              (1 - avg(lwidp:success_ratio:6h{kubernetes_pod_name=~"catalog-svc-.*"}))
+              > (6 * 0.0005)
+            )
+          for: 15m
+          labels: { severity: warn, service: catalog-svc, slo: grpc-success-ratio }
+          annotations:
+            summary: "catalog-svc slow burn (6h) — 99.95% SLO"
+            description: "catalog-svc gRPC success ratio is burning >6× error budget."
+
+    - name: lw-idp.slo.cluster-svc
+      interval: 30s
+      rules:
+        - alert: ClusterSvcSloFastBurn
+          expr: |
+            (
+              (1 - avg(lwidp:success_ratio:5m{kubernetes_pod_name=~"cluster-svc-.*"}))
+              > (28.8 * 0.0005)
+              and
+              (1 - avg(lwidp:success_ratio:1h{kubernetes_pod_name=~"cluster-svc-.*"}))
+              > (28.8 * 0.0005)
+            )
+          for: 2m
+          labels: { severity: page, service: cluster-svc, slo: grpc-success-ratio }
+          annotations:
+            summary: "cluster-svc fast burn (1h) — 99.95% SLO"
+            description: "cluster-svc gRPC success ratio is burning >28.8× error budget."
+        - alert: ClusterSvcSloSlowBurn
+          expr: |
+            (
+              (1 - avg(lwidp:success_ratio:30m{kubernetes_pod_name=~"cluster-svc-.*"}))
+              > (6 * 0.0005)
+              and
+              (1 - avg(lwidp:success_ratio:6h{kubernetes_pod_name=~"cluster-svc-.*"}))
+              > (6 * 0.0005)
+            )
+          for: 15m
+          labels: { severity: warn, service: cluster-svc, slo: grpc-success-ratio }
+          annotations:
+            summary: "cluster-svc slow burn (6h) — 99.95% SLO"
+            description: "cluster-svc gRPC success ratio is burning >6× error budget."
