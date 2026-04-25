@@ -30,6 +30,11 @@ const nc = await natsConnect({ servers: env.NATS_URL });
 // In-memory registry of WS connections for THIS pod.
 const registry = new ConnectionRegistry();
 
+// Track the Fastify instance so callbacks (onEnvelope/onError, onShutdown)
+// can log against fastify.log and onShutdown can reach the underlying WS
+// server to close all live sockets with code 1012 (Service Restart).
+let fastifyRef: FastifyInstance | undefined;
+
 // Per-pod ephemeral consumer on idp.>; deliver=new, ack=none.
 const consumerHandle = await startNotificationConsumer({
   nc,
@@ -47,20 +52,14 @@ const consumerHandle = await startNotificationConsumer({
       try {
         conn.send(JSON.stringify(frame));
       } catch (err) {
-        // eslint-disable-next-line no-console
-        console.warn("[ws-send] failed", err);
+        fastifyRef?.log.warn({ err }, "ws-send failed");
       }
     }
   },
   onError: (err, ctx) => {
-    // eslint-disable-next-line no-console
-    console.error("[nats-consumer]", ctx, err);
+    fastifyRef?.log.error({ err, ctx }, "nats-consumer error");
   },
 });
-
-// Track the Fastify instance so onShutdown can reach the underlying WS server
-// and close all live sockets with code 1012 (Service Restart).
-let fastifyRef: FastifyInstance | undefined;
 
 await startServer({
   name: "notification-svc",
@@ -96,16 +95,14 @@ await startServer({
     try {
       await consumerHandle.stop();
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error("[shutdown] consumer.stop", err);
+      fastifyRef?.log.error({ err }, "shutdown: consumer.stop");
     }
 
     // 2. Drain NATS (publish-side flush; we don't publish, but it tidies).
     try {
       await nc.drain();
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error("[shutdown] nats.drain", err);
+      fastifyRef?.log.error({ err }, "shutdown: nats.drain");
     }
 
     // 3. Close all live WS connections with code 1012 (Service Restart) so
@@ -132,16 +129,14 @@ await startServer({
     try {
       await sessionStore.close();
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error("[shutdown] sessionStore.close", err);
+      fastifyRef?.log.error({ err }, "shutdown: sessionStore.close");
     }
 
     // 5. Quit the shared Redis client last (boot owns the lifecycle).
     try {
       await redis.quit();
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error("[shutdown] redis.quit", err);
+      fastifyRef?.log.error({ err }, "shutdown: redis.quit");
     }
   },
 });
