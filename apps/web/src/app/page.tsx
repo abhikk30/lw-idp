@@ -2,10 +2,10 @@ import type { ReactNode } from "react";
 
 export default function HomePage(): ReactNode {
   return (
-    <main style={{ padding: "2rem", maxWidth: 640 }}>
-      <h1>lw-idp</h1>
-      <p style={{ opacity: 0.7 }}>
-        Internal Developer Platform — Plan 1.2 skeleton. Real portal UI lands in Plan 1.7.
+    <main className="p-8 max-w-2xl mx-auto">
+      <h1 className="text-3xl font-bold tracking-tight">lw-idp</h1>
+      <p className="text-muted-foreground mt-2">
+        Portal foundation in place. Real dashboard lands in D1.
       </p>
     </main>
   );
