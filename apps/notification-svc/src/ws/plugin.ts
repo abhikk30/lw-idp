@@ -3,7 +3,7 @@ import { type SessionStore, parseSessionCookie } from "@lw-idp/auth";
 import type { FastifyInstance, FastifyPluginAsync } from "fastify";
 import fp from "fastify-plugin";
 import { TokenBucket } from "../backpressure.js";
-import { connectionsGauge } from "../metrics.js";
+import { connectionsGauge, ensureNotificationMetricsRegistered } from "../metrics.js";
 import type { ConnectionRegistry } from "../registry.js";
 
 export interface WsPluginOptions {
@@ -21,6 +21,9 @@ const wsPluginFn: FastifyPluginAsync<WsPluginOptions> = async (
   fastify: FastifyInstance,
   opts: WsPluginOptions,
 ) => {
+  // Re-attach our metrics in case fastify-metrics' clearRegisterOnInit wiped them.
+  ensureNotificationMetricsRegistered();
+
   await fastify.register(fastifyWebsocket);
 
   const path = opts.path ?? "/ws/stream";

@@ -24,3 +24,22 @@ export const shedCounter = new Counter({
   labelNames: ["type"] as const,
   registers: [register],
 });
+
+/**
+ * Re-attach our service-level metrics to the global prom-client registry.
+ *
+ * `fastify-metrics` calls `register.clear()` during plugin init (via
+ * `clearRegisterOnInit: true`), which wipes ALL previously-registered
+ * collectors — including ours — from the registry's `_metrics` map. The
+ * Histogram/Gauge/Counter instances themselves still exist, but they are no
+ * longer reachable via `register.metrics()`. Calling this helper after
+ * `buildServer()` returns (e.g., from inside the WS plugin's register fn)
+ * re-attaches our metrics so the `/metrics` endpoint exposes them.
+ *
+ * `registerMetric` is idempotent for the same instance.
+ */
+export function ensureNotificationMetricsRegistered(): void {
+  register.registerMetric(fanoutHistogram);
+  register.registerMetric(connectionsGauge);
+  register.registerMetric(shedCounter);
+}
