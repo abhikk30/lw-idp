@@ -9,7 +9,9 @@
       "**/node_modules",
       "**/coverage",
       "pnpm-lock.yaml",
-      "packages/contracts/dist/**"
+      "packages/contracts/dist/**",
+      "apps/web/public/mockServiceWorker.js",
+      "apps/web/storybook-static/**"
     ]
   },
   "formatter": {

@@ -11,6 +11,6 @@
     "noEmit": true,
     "plugins": [{ "name": "next" }]
   },
-  "include": ["src", "test", "next-env.d.ts", ".next/types/**/*.ts"],
+  "include": ["src", "test", ".storybook", "next-env.d.ts", ".next/types/**/*.ts"],
   "exclude": ["node_modules", ".next"]
 }
