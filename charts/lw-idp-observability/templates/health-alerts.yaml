@@ -1,0 +1,96 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: lw-idp-health-alerts
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "lw-idp-observability.labels" . | nindent 4 }}
+    release: kube-prometheus-stack
+    prometheus: kube-prometheus
+spec:
+  groups:
+    - name: lw-idp.pod-health
+      interval: 30s
+      rules:
+        - alert: PodCrashLooping
+          expr: |
+            rate(kube_pod_container_status_restarts_total{namespace="lw-idp"}[10m]) > 0.1
+          for: 5m
+          labels:
+            severity: page
+            category: pod-health
+          annotations:
+            summary: "Pod {{`{{ $labels.pod }}`}} crash-looping"
+            description: "Pod {{`{{ $labels.pod }}`}} ({{`{{ $labels.container }}`}}) restarting >0.1/sec for 5m."
+        - alert: PodNotReady
+          expr: |
+            kube_pod_status_ready{namespace="lw-idp",condition="false"} == 1
+          for: 2m
+          labels:
+            severity: warn
+            category: pod-health
+          annotations:
+            summary: "Pod {{`{{ $labels.pod }}`}} not ready"
+            description: "Pod {{`{{ $labels.pod }}`}} has been NotReady for 2m."
+        - alert: PVCAlmostFull
+          expr: |
+            (kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes) > 0.8
+          for: 10m
+          labels:
+            severity: warn
+            category: storage
+          annotations:
+            summary: "PVC {{`{{ $labels.persistentvolumeclaim }}`}} >80% full"
+            description: "Sustained capacity pressure for 10m."
+
+    - name: lw-idp.stream-health
+      interval: 30s
+      rules:
+        - alert: NatsStreamBacklog
+          expr: |
+            max(nats_jetstream_stream_pending_messages{stream_name="IDP_DOMAIN"}) > 1000
+          for: 5m
+          labels:
+            severity: page
+            category: stream
+          annotations:
+            summary: "NATS IDP_DOMAIN backlog >1000 messages"
+            description: "Pending message count exceeded threshold for 5m. Notification fan-out may be slow."
+        - alert: PostgresReplicationLag
+          expr: |
+            max(cnpg_pg_replication_lag) > 10
+          for: 5m
+          labels:
+            severity: warn
+            category: database
+          annotations:
+            summary: "Postgres replication lag >10s"
+            description: "CNPG-managed Postgres standby is >10s behind primary for 5m."
+
+    - name: lw-idp.latency-slo
+      interval: 30s
+      rules:
+        # spec §11.2: gateway-svc p95 latency < 200ms (threshold-style alert; not MWMBR)
+        - alert: GatewaySvcP95LatencyBreach
+          expr: |
+            avg(lwidp:duration:p95_5m{kubernetes_pod_name=~"gateway-svc-.*"}) > 0.2
+          for: 10m
+          labels:
+            severity: warn
+            service: gateway-svc
+            slo: p95-latency
+          annotations:
+            summary: "gateway-svc p95 latency > 200ms"
+            description: "Sustained p95 latency above SLO threshold for 10m."
+        # spec §11.2: notification-svc event→WS p95 < 500ms
+        - alert: NotificationSvcFanoutP95Breach
+          expr: |
+            histogram_quantile(0.95, sum by (le) (rate(lwidp_notification_fanout_seconds_bucket[5m]))) > 0.5
+          for: 10m
+          labels:
+            severity: warn
+            service: notification-svc
+            slo: fanout-p95
+          annotations:
+            summary: "notification-svc fan-out p95 > 500ms"
+            description: "Sustained fan-out latency above SLO threshold for 10m."
