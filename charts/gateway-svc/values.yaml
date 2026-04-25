@@ -78,3 +78,6 @@ extraEnv:
     value: "60000"
   - name: IDEMPOTENCY_TTL_SECONDS
     value: "86400"
+
+monitoring:
+  enabled: true

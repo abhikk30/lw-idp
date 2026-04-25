@@ -47,3 +47,6 @@ extraEnv:
     value: "1"
   - name: OUTBOX_POLL_MS
     value: "500"
+
+monitoring:
+  enabled: true
