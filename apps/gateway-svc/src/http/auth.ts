@@ -2,6 +2,7 @@ import {
   type OidcVerifier,
   type SessionRecord,
   type SessionStore,
+  isSafeRedirect,
   newSessionId,
   parseSessionCookie,
   serializeSessionCookie,
@@ -134,7 +135,11 @@ const authPluginFn: FastifyPluginAsync<AuthPluginOptions> = async (
       });
       reply.header("set-cookie", cookieHeader);
 
-      const redirectTo = entry.redirectAfter ?? opts.defaultRedirect ?? "/";
+      const requestedRedirect = entry.redirectAfter;
+      const redirectTo =
+        requestedRedirect && isSafeRedirect(requestedRedirect)
+          ? requestedRedirect
+          : (opts.defaultRedirect ?? "/");
       return reply.redirect(redirectTo, 302);
     },
   );

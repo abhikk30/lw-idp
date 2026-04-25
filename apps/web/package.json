@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "3.9.1",
+    "@lw-idp/auth": "workspace:*",
     "@lw-idp/contracts": "workspace:*",
     "@lw-idp/ui": "workspace:*",
     "@tanstack/react-query": "5.62.7",

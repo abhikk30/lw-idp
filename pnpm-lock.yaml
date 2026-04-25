@@ -454,6 +454,9 @@ importers:
       '@hookform/resolvers':
         specifier: 3.9.1
         version: 3.9.1(react-hook-form@7.54.0(react@19.0.0))
+      '@lw-idp/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@lw-idp/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
