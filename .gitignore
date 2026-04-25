@@ -33,8 +33,10 @@ apps/*/src/**/*.d.ts.map
 packages/contracts/dist/**/*.js
 packages/contracts/dist/**/*.js.map
 packages/contracts/dist/**/*.tsbuildinfo
-packages/contracts/src/*.js
-packages/contracts/src/*.js.map
+packages/contracts/src/**/*.js
+packages/contracts/src/**/*.js.map
+packages/contracts/test/**/*.js
+packages/contracts/test/**/*.js.map
 packages/contracts/dist-ts/
 
 # env

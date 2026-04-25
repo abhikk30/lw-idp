@@ -11,6 +11,11 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --prefer-offline
 
 FROM deps AS builder
+# Pre-build the contracts package so its compiled .js + .d.ts artifacts are
+# resolvable by Next's standalone tracer.
+RUN pnpm --filter "@lw-idp/contracts" build
+# @lw-idp/ui ships TSX source; Next's transpilePackages compiles it during the
+# next build. No pre-build needed.
 RUN pnpm -F "@lw-idp/web" build
 
 FROM node:22-alpine AS runtime
@@ -19,7 +24,9 @@ ENV PORT=3001
 ENV HOSTNAME=0.0.0.0
 RUN addgroup -S app && adduser -S app -G app
 WORKDIR /app
+# Next standalone output: server bundle + minimal node_modules.
 COPY --from=builder --chown=app:app /repo/apps/web/.next/standalone ./
+# Static + public assets.
 COPY --from=builder --chown=app:app /repo/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder --chown=app:app /repo/apps/web/public ./apps/web/public
 USER app

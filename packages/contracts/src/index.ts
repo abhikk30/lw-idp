@@ -6,3 +6,11 @@
 export * as identity from "../dist/proto/lwidp/identity/v1/identity_pb.js";
 export * as catalog from "../dist/proto/lwidp/catalog/v1/catalog_pb.js";
 export * as cluster from "../dist/proto/lwidp/cluster/v1/cluster_pb.js";
+
+// Shared Zod form schemas (UI projection of OpenAPI create/register payloads).
+export * from "./forms/index.js";
+
+// Adapter interfaces consumed by the web app's mock + live integrations
+// (deployments, pipelines, etc.). Source of truth for the Deployment/Pipeline
+// shapes used across @lw-idp/testing fixtures and apps/web.
+export * from "./adapters/index.js";

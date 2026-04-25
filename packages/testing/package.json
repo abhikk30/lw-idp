@@ -13,9 +13,11 @@
     "clean": "rm -rf dist coverage .turbo"
   },
   "dependencies": {
+    "@lw-idp/contracts": "workspace:*",
     "@testcontainers/nats": "10.13.2",
     "@testcontainers/postgresql": "10.13.2",
     "@types/ws": "^8.5.14",
+    "msw": "2.13.6",
     "testcontainers": "10.13.2",
     "ws": "^8.18.0"
   },

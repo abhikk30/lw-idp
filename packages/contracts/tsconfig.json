@@ -7,6 +7,6 @@
     "declarationMap": false,
     "sourceMap": false
   },
-  "include": ["dist/proto/**/*.ts", "dist/openapi/**/*.d.ts", "src/**/*.ts"],
+  "include": ["dist/proto/**/*.ts", "dist/openapi/**/*.d.ts", "src/**/*.ts", "test/**/*.ts"],
   "exclude": ["node_modules"]
 }
