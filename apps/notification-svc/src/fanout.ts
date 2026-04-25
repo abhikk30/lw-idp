@@ -1,6 +1,7 @@
 import type { Envelope } from "@lw-idp/events";
 import { canUserSeeEvent } from "./authz.js";
 import { envelopeToFrame } from "./frame.js";
+import { fanoutHistogram, shedCounter } from "./metrics.js";
 import type { ConnectionRegistry } from "./registry.js";
 
 export interface FanoutDeps {
@@ -21,6 +22,7 @@ export interface FanoutDeps {
  * gated on `NOTIF_DEBUG_LOG=1` (P1.6 review item Imp-5).
  */
 export function fanOut(env: Envelope, deps: FanoutDeps): number {
+  const startMs = performance.now();
   let recipients = 0;
   for (const conn of deps.registry.all()) {
     if (!canUserSeeEvent(conn.session, env)) {
@@ -28,6 +30,7 @@ export function fanOut(env: Envelope, deps: FanoutDeps): number {
     }
     if (!conn.bucket.take()) {
       deps.registry.recordShed();
+      shedCounter.inc({ type: env.type });
       continue;
     }
     const frame = envelopeToFrame(env);
@@ -38,6 +41,8 @@ export function fanOut(env: Envelope, deps: FanoutDeps): number {
       deps.log.warn({ err, connId: conn.id }, "ws-send failed");
     }
   }
+  // Histogram observation in seconds; one observation per envelope (not per recipient).
+  fanoutHistogram.observe({ type: env.type }, (performance.now() - startMs) / 1000);
   if (deps.debugLog) {
     deps.log.info(
       { type: env.type, recipients, totalConnections: deps.registry.all().length },

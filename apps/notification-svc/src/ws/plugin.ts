@@ -3,6 +3,7 @@ import { type SessionStore, parseSessionCookie } from "@lw-idp/auth";
 import type { FastifyInstance, FastifyPluginAsync } from "fastify";
 import fp from "fastify-plugin";
 import { TokenBucket } from "../backpressure.js";
+import { connectionsGauge } from "../metrics.js";
 import type { ConnectionRegistry } from "../registry.js";
 
 export interface WsPluginOptions {
@@ -57,6 +58,7 @@ const wsPluginFn: FastifyPluginAsync<WsPluginOptions> = async (
         fastify.log.warn({ err, connId: conn.id }, "ws send failed");
       }
     });
+    connectionsGauge.inc();
 
     // Welcome frame so the client knows it is authenticated and which user it is.
     try {
@@ -92,6 +94,7 @@ const wsPluginFn: FastifyPluginAsync<WsPluginOptions> = async (
         clearInterval(pingTimer);
       }
       opts.registry.remove(conn.id);
+      connectionsGauge.dec();
     });
   });
 };
