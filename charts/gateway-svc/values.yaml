@@ -36,7 +36,9 @@ ingress:
   hosts:
     - host: portal.lw-idp.local
       paths:
-        - path: /
+        - path: /api/v1/
+          pathType: Prefix
+        - path: /auth/
           pathType: Prefix
 
 extraEnv:
