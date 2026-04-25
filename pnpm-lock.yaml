@@ -360,12 +360,27 @@ importers:
 
   apps/notification-svc:
     dependencies:
+      '@bufbuild/protobuf':
+        specifier: 2.11.0
+        version: 2.11.0
+      '@connectrpc/connect':
+        specifier: 2.1.1
+        version: 2.1.1(@bufbuild/protobuf@2.11.0)
+      '@connectrpc/connect-fastify':
+        specifier: 2.1.1
+        version: 2.1.1(@bufbuild/protobuf@2.11.0)(@connectrpc/connect-node@2.1.1(@bufbuild/protobuf@2.11.0)(@connectrpc/connect@2.1.1(@bufbuild/protobuf@2.11.0)))(@connectrpc/connect@2.1.1(@bufbuild/protobuf@2.11.0))(fastify@5.1.0)
+      '@connectrpc/connect-node':
+        specifier: 2.1.1
+        version: 2.1.1(@bufbuild/protobuf@2.11.0)(@connectrpc/connect@2.1.1(@bufbuild/protobuf@2.11.0))
       '@fastify/websocket':
         specifier: 11.0.1
         version: 11.0.1
       '@lw-idp/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@lw-idp/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@lw-idp/db':
         specifier: workspace:*
         version: link:../../packages/db
