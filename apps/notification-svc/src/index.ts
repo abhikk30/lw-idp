@@ -3,9 +3,8 @@ import { connect, runMigrations } from "@lw-idp/db";
 import { createRedis, startServer } from "@lw-idp/service-kit";
 import type { FastifyInstance } from "fastify";
 import { connect as natsConnect } from "nats";
-import { canUserSeeEvent } from "./authz.js";
 import { loadConfig } from "./config.js";
-import { envelopeToFrame } from "./frame.js";
+import { fanOut } from "./fanout.js";
 import { registerConnectRpc } from "./grpc/plugin.js";
 import { startNotificationConsumer } from "./nats/consumer.js";
 import { ConnectionRegistry } from "./registry.js";
@@ -40,21 +39,14 @@ const consumerHandle = await startNotificationConsumer({
   nc,
   consumerNamePrefix: env.CONSUMER_NAME_PREFIX,
   onEnvelope: (envObj) => {
-    for (const conn of registry.all()) {
-      if (!canUserSeeEvent(conn.session, envObj)) {
-        continue;
-      }
-      if (!conn.bucket.take()) {
-        registry.recordShed();
-        continue;
-      }
-      const frame = envelopeToFrame(envObj);
-      try {
-        conn.send(JSON.stringify(frame));
-      } catch (err) {
-        fastifyRef?.log.warn({ err }, "ws-send failed");
-      }
+    if (!fastifyRef) {
+      return;
     }
+    fanOut(envObj, {
+      registry,
+      log: fastifyRef.log,
+      debugLog: env.NOTIF_DEBUG_LOG === "1",
+    });
   },
   onError: (err, ctx) => {
     fastifyRef?.log.error({ err, ctx }, "nats-consumer error");
