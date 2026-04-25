@@ -7,7 +7,9 @@ import {
 import { type LwIdpServer, buildServer } from "@lw-idp/service-kit";
 import { type RedisHandle, startRedis } from "@lw-idp/testing";
 import { Redis } from "ioredis";
+import { register } from "prom-client";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { idempotencyReplaysCounter } from "../../src/metrics.js";
 import { idempotencyPlugin } from "../../src/middleware/idempotency.js";
 import { sessionPlugin } from "../../src/middleware/session.js";
 
@@ -149,5 +151,26 @@ describe("idempotency plugin", () => {
       payload: { a: 1 },
     });
     expect(r1.json().id).not.toBe(r2.json().id);
+  });
+
+  it("idempotencyReplaysCounter increments on cached replay", async () => {
+    idempotencyReplaysCounter.reset();
+    server = await build(rec);
+    const headers = { cookie, "content-type": "application/json", "idempotency-key": "abc-m1" };
+    await server.fastify.inject({
+      method: "POST",
+      url: "/resource",
+      headers,
+      payload: { x: 1 },
+    });
+    const r2 = await server.fastify.inject({
+      method: "POST",
+      url: "/resource",
+      headers,
+      payload: { x: 1 },
+    });
+    expect(r2.headers["idempotency-replayed"]).toBe("true");
+    const text = await register.metrics();
+    expect(text).toMatch(/lwidp_gateway_idempotency_replays_total\{[^}]*\} 1/);
   });
 });

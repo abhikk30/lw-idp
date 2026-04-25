@@ -2,6 +2,7 @@ import rateLimit from "@fastify/rate-limit";
 import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
 import type { Redis } from "ioredis";
+import { ensureGatewayMetricsRegistered, ratelimitShedCounter } from "../metrics.js";
 
 export interface RateLimitPluginOptions {
   redis: Redis;
@@ -10,6 +11,9 @@ export interface RateLimitPluginOptions {
 }
 
 const rateLimitPluginFn: FastifyPluginAsync<RateLimitPluginOptions> = async (fastify, opts) => {
+  // Re-attach our metrics in case fastify-metrics' clearRegisterOnInit wiped them.
+  ensureGatewayMetricsRegistered();
+
   await fastify.register(rateLimit, {
     max: opts.max,
     timeWindow: opts.timeWindowMs,
@@ -35,6 +39,16 @@ const rateLimitPluginFn: FastifyPluginAsync<RateLimitPluginOptions> = async (fas
       );
       return err;
     },
+  });
+
+  // Increment the shed counter once per 429 reply. onSend fires after the
+  // status code is finalized; @fastify/rate-limit's errorResponseBuilder
+  // doesn't surface the request, so we observe at the reply boundary.
+  fastify.addHook("onSend", async (req, reply) => {
+    if (reply.statusCode === 429) {
+      const route = req.routeOptions?.url ?? req.url.split("?")[0] ?? "unknown";
+      ratelimitShedCounter.inc({ route });
+    }
   });
 };
 
