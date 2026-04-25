@@ -71,6 +71,23 @@ describe("startNotificationConsumer (integration)", () => {
     }
   }, 120_000);
 
+  it("isHealthy() reflects consumer state", async () => {
+    let handle: NotificationConsumerHandle | undefined;
+    try {
+      handle = await startNotificationConsumer({
+        nc,
+        consumerNamePrefix: "test-health",
+        onEnvelope: () => {},
+      });
+      // Give the consume() promise a tick to register
+      await new Promise((r) => setTimeout(r, 200));
+      expect(handle.isHealthy()).toBe(true);
+    } finally {
+      await handle?.stop();
+      expect(handle?.isHealthy()).toBe(false);
+    }
+  }, 30_000);
+
   it("invokes onError for a malformed envelope but keeps consuming", async () => {
     const errs: unknown[] = [];
     const received: string[] = [];

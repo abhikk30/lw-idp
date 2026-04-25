@@ -66,6 +66,20 @@ await startServer({
   name: "notification-svc",
   port: env.PORT,
   shutdownTimeoutMs: env.SHUTDOWN_CLOSE_TIMEOUT_MS + 5_000,
+  readyProbes: [
+    async () => {
+      const ok = consumerHandle.isHealthy();
+      return ok
+        ? { ok, name: "nats-consumer" }
+        : { ok, name: "nats-consumer", reason: "consumer not running" };
+    },
+    async () => {
+      const ok = redis.status === "ready";
+      return ok
+        ? { ok, name: "redis" }
+        : { ok, name: "redis", reason: `redis status: ${redis.status}` };
+    },
+  ],
   register: async (fastify) => {
     fastifyRef = fastify;
     await fastify.register(wsPlugin, {
@@ -77,7 +91,24 @@ await startServer({
     await registerConnectRpc(fastify);
   },
   onShutdown: async () => {
-    // 1. Close all live WS connections with code 1012 (Service Restart) so
+    // 1. Stop NATS consumer first so no more inbound envelopes can race
+    //    against half-closed WS sockets.
+    try {
+      await consumerHandle.stop();
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("[shutdown] consumer.stop", err);
+    }
+
+    // 2. Drain NATS (publish-side flush; we don't publish, but it tidies).
+    try {
+      await nc.drain();
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("[shutdown] nats.drain", err);
+    }
+
+    // 3. Close all live WS connections with code 1012 (Service Restart) so
     //    clients reconnect on a different replica.
     try {
       const wss = fastifyRef?.websocketServer;
@@ -95,22 +126,6 @@ await startServer({
       }
     } catch {
       // ignore — best-effort
-    }
-
-    // 2. Stop NATS consumer (no more inbound events).
-    try {
-      await consumerHandle.stop();
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error("[shutdown] consumer.stop", err);
-    }
-
-    // 3. Drain NATS (publish-side flush; we don't publish, but it tidies).
-    try {
-      await nc.drain();
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error("[shutdown] nats.drain", err);
     }
 
     // 4. Close session store (no-op for shared client — store does not own it).

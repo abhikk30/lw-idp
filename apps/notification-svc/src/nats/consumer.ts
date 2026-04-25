@@ -25,6 +25,8 @@ export interface NotificationConsumerOptions {
 export interface NotificationConsumerHandle {
   /** The ephemeral consumer name actually used (prefix + random). */
   consumerName: string;
+  /** True iff the consume loop is actively iterating and not stopped. */
+  isHealthy: () => boolean;
   /** Stop the subscription loop and tear down the consumer. */
   stop: () => Promise<void>;
 }
@@ -66,30 +68,43 @@ export async function startNotificationConsumer(
 
   const codec = JSONCodec<unknown>();
   let stopped = false;
+  let consumerHealthy = false;
   let iter: Awaited<ReturnType<typeof consumer.consume>> | undefined;
 
   async function loop(): Promise<void> {
-    try {
-      iter = await consumer.consume();
-      for await (const msg of iter) {
+    while (!stopped) {
+      try {
+        iter = await consumer.consume();
+        consumerHealthy = true;
+        for await (const msg of iter) {
+          if (stopped) {
+            break;
+          }
+          try {
+            const raw = codec.decode(msg.data);
+            const parsed = envelopeSchema.safeParse(raw);
+            if (!parsed.success) {
+              opts.onError?.(parsed.error, { subject: msg.subject });
+              continue;
+            }
+            await opts.onEnvelope(parsed.data);
+          } catch (err) {
+            opts.onError?.(err, { subject: msg.subject });
+          }
+        }
+        // Iterator ended cleanly — only happens when consumer.stop() called
+        consumerHealthy = false;
         if (stopped) {
           break;
         }
-        try {
-          const raw = codec.decode(msg.data);
-          const parsed = envelopeSchema.safeParse(raw);
-          if (!parsed.success) {
-            opts.onError?.(parsed.error, { subject: msg.subject });
-            continue;
-          }
-          await opts.onEnvelope(parsed.data);
-        } catch (err) {
-          opts.onError?.(err, { subject: msg.subject });
+      } catch (err) {
+        consumerHealthy = false;
+        if (stopped) {
+          break;
         }
-      }
-    } catch (err) {
-      if (!stopped) {
         opts.onError?.(err, {});
+        // Bounded backoff before reconnect attempt.
+        await new Promise((r) => setTimeout(r, 1_000));
       }
     }
   }
@@ -98,8 +113,10 @@ export async function startNotificationConsumer(
 
   return {
     consumerName,
+    isHealthy: () => consumerHealthy && !stopped,
     stop: async () => {
       stopped = true;
+      consumerHealthy = false;
       try {
         iter?.stop();
       } catch {
