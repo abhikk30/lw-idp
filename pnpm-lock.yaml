@@ -505,6 +505,9 @@ importers:
       tailwind-merge:
         specifier: 2.5.5
         version: 2.5.5
+      ulid:
+        specifier: 2.3.0
+        version: 2.3.0
       zod:
         specifier: 'catalog:'
         version: 3.23.8
