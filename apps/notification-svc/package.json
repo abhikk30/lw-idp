@@ -13,6 +13,7 @@
     "db:migrate": "tsx src/db/migrate-cli.ts"
   },
   "dependencies": {
+    "@fastify/websocket": "11.0.1",
     "@lw-idp/auth": "workspace:*",
     "@lw-idp/db": "workspace:*",
     "@lw-idp/errors": "workspace:*",
@@ -20,6 +21,8 @@
     "@lw-idp/service-kit": "workspace:*",
     "@lw-idp/telemetry": "workspace:*",
     "drizzle-orm": "0.36.0",
+    "fastify": "5.1.0",
+    "fastify-plugin": "5.0.1",
     "nats": "2.28.2",
     "postgres": "3.4.4",
     "zod": "catalog:"
@@ -29,10 +32,12 @@
     "@lw-idp/testing": "workspace:*",
     "@types/node": "catalog:",
     "@types/pg": "8.11.10",
+    "@types/ws": "8.5.14",
     "drizzle-kit": "0.28.0",
     "pg": "8.13.0",
     "tsx": "4.19.2",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "ws": "8.18.0"
   }
 }
