@@ -18,6 +18,7 @@ import {
 } from "@lw-idp/ui/components/sheet";
 import type { ReactNode } from "react";
 import { SidebarNav } from "./sidebar.client.js";
+import { ThemeToggle } from "./theme-toggle.client.js";
 
 export interface TopbarProps {
   user: { displayName: string; email: string };
@@ -57,8 +58,7 @@ export function Topbar({ user }: TopbarProps): ReactNode {
       {/* Spacer pushes user menu right */}
       <div className="flex-1" />
 
-      {/* C2 will replace this slot with the real <ThemeToggle />. */}
-      <div data-slot="theme-toggle" aria-hidden />
+      <ThemeToggle />
 
       {/* C3 will replace this slot with the real <CommandPaletteTrigger />. */}
       <div data-slot="command-palette" aria-hidden />
