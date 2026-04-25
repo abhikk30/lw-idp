@@ -1,0 +1,17 @@
+{{- range $path, $bytes := .Files.Glob "dashboards/*.json" -}}
+{{- $name := regexReplaceAll "[^a-z0-9-]" (lower (trimSuffix ".json" (base $path))) "-" }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ printf "lw-idp-dashboard-%s" $name }}
+  namespace: {{ $.Values.namespace }}
+  labels:
+    {{- include "lw-idp-observability.labels" $ | nindent 4 }}
+    {{ $.Values.dashboardLabel.key }}: {{ $.Values.dashboardLabel.value | quote }}
+  annotations:
+    grafana_folder: {{ $.Values.dashboardFolder | quote }}
+data:
+  {{ base $path }}: |-
+{{ $.Files.Get $path | indent 4 }}
+{{- end }}

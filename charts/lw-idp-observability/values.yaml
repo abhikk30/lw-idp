@@ -1,0 +1,14 @@
+# Namespace where ConfigMaps + PrometheusRule CRs land.
+# kube-prometheus-stack is namespace-bound to "observability" — drop these
+# resources alongside.
+namespace: observability
+
+# Dashboard folder shown in Grafana. Sidecar reads this from the
+# `grafana_folder` annotation on each ConfigMap.
+dashboardFolder: lw-idp
+
+# Grafana dashboard discovery label/value. kube-prometheus-stack defaults to
+# `grafana_dashboard: "1"` (string).
+dashboardLabel:
+  key: grafana_dashboard
+  value: "1"
