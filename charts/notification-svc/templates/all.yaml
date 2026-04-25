@@ -5,3 +5,5 @@
 {{ include "lw-idp-service.serviceAccount" . }}
 ---
 {{ include "lw-idp-service.pdb" . }}
+---
+{{ include "lw-idp-service.ingress" . }}

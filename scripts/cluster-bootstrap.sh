@@ -42,7 +42,7 @@ if [[ -z "${PG_PW}" ]]; then
   exit 1
 fi
 
-for svc in identity catalog cluster; do
+for svc in identity catalog cluster notification; do
   dsn="postgres://postgres:${PG_PW}@pg-rw.lwidp-data.svc.cluster.local:5432/${svc}"
   kubectl -n lw-idp create secret generic "${svc}-svc-pg" \
     --from-literal=PG_DSN="${dsn}" \
@@ -59,6 +59,16 @@ kubectl -n lw-idp create secret generic gateway-svc-dex \
 # Dragonfly service is in dragonfly-system namespace, no auth by default on dev profile
 kubectl -n lw-idp create secret generic gateway-svc-redis \
   --from-literal=REDIS_URL="redis://df.dragonfly-system.svc.cluster.local:6379" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+# notification-svc-redis (Dragonfly connection — same as gateway-svc)
+kubectl -n lw-idp create secret generic notification-svc-redis \
+  --from-literal=REDIS_URL="redis://df.dragonfly-system.svc.cluster.local:6379" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+# notification-svc-nats (NATS JetStream)
+kubectl -n lw-idp create secret generic notification-svc-nats \
+  --from-literal=NATS_URL="nats://nats.nats-system.svc.cluster.local:4222" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 echo "==> applying Postgres Cluster CR"

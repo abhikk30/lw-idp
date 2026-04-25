@@ -30,3 +30,49 @@ probes:
     path: /healthz
   readiness:
     path: /readyz
+
+# Long-lived WebSocket connections need extended ingress timeouts. The
+# /ws/stream path on portal.lw-idp.local routes here; everything else stays
+# on gateway-svc. nginx ingress picks the most-specific path-match, so this
+# rule wins for /ws/stream regardless of order.
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+  hosts:
+    - host: portal.lw-idp.local
+      paths:
+        - path: /ws/stream
+          pathType: Prefix
+
+extraEnv:
+  - name: PG_DSN
+    valueFrom:
+      secretKeyRef:
+        name: notification-svc-pg
+        key: PG_DSN
+  - name: RUN_MIGRATIONS
+    value: "1"
+  - name: REDIS_URL
+    valueFrom:
+      secretKeyRef:
+        name: notification-svc-redis
+        key: REDIS_URL
+  - name: NATS_URL
+    valueFrom:
+      secretKeyRef:
+        name: notification-svc-nats
+        key: NATS_URL
+  - name: CONSUMER_NAME_PREFIX
+    value: "notification-svc"
+  - name: RATE_LIMIT_PER_SEC
+    value: "100"
+  - name: RATE_LIMIT_BURST
+    value: "50"
+  - name: SHUTDOWN_CLOSE_TIMEOUT_MS
+    value: "5000"
+  - name: LOG_LEVEL
+    value: "info"
