@@ -28,6 +28,7 @@
     "cmdk": "1.0.4",
     "next-intl": "3.26.0",
     "openapi-fetch": "0.13.4",
+    "server-only": "0.0.1",
     "clsx": "2.1.1",
     "tailwind-merge": "2.5.5",
     "class-variance-authority": "0.7.1"
