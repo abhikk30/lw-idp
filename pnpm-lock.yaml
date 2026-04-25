@@ -599,6 +599,9 @@ importers:
       '@connectrpc/connect':
         specifier: 2.1.1
         version: 2.1.1(@bufbuild/protobuf@2.11.0)
+      zod:
+        specifier: 'catalog:'
+        version: 3.23.8
     devDependencies:
       '@bufbuild/protoc-gen-es':
         specifier: 2.11.0
@@ -612,6 +615,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 5.6.3
+      vitest:
+        specifier: 'catalog:'
+        version: 2.1.4(@types/node@25.6.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.6.8(@types/node@25.6.0)(typescript@5.6.3))
 
   packages/db:
     dependencies:

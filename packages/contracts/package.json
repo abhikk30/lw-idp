@@ -19,17 +19,19 @@
     "breaking": "buf breaking --against '.git#branch=main'",
     "build": "tsc -p tsconfig.json && pnpm openapi:types",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "echo 'no tests yet'",
+    "test": "vitest run",
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
     "@bufbuild/protobuf": "2.11.0",
-    "@connectrpc/connect": "2.1.1"
+    "@connectrpc/connect": "2.1.1",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@lw-idp/config": "workspace:*",
     "@bufbuild/protoc-gen-es": "2.11.0",
     "openapi-typescript": "7.4.4",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }
