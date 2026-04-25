@@ -28,7 +28,8 @@ export async function createTeam(db: PostgresJsDatabase, input: CreateTeamInput)
     const envelope = createEnvelope({
       type: "idp.identity.team.created",
       source: "identity-svc",
-      data: { id: created.id, slug: created.slug, name: created.name },
+      // team_id duplicates id so notification-svc authz can filter on a stable snake_case key.
+      data: { id: created.id, team_id: created.id, slug: created.slug, name: created.name },
       ...(input.actorUserId !== undefined ? { actor: { userId: input.actorUserId } } : {}),
     });
     await tx.insert(outbox).values({
@@ -75,7 +76,15 @@ export async function addTeamMember(
     const envelope = createEnvelope({
       type: "idp.identity.team.member.added",
       source: "identity-svc",
-      data: { teamId: row.teamId, userId: row.userId, role: row.role },
+      // team_id / user_id duplicate teamId / userId so notification-svc authz can filter on
+      // the snake_case keys it uses in its rule table.
+      data: {
+        teamId: row.teamId,
+        userId: row.userId,
+        team_id: row.teamId,
+        user_id: row.userId,
+        role: row.role,
+      },
       ...(input.actorUserId !== undefined ? { actor: { userId: input.actorUserId } } : {}),
     });
     await tx.insert(outbox).values({

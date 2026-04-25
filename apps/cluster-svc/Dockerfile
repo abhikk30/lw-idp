@@ -34,7 +34,7 @@ RUN apk add --no-cache jq && \
       echo "patched $pkg"; \
     done && \
     pkgjson="/repo/packages/contracts/package.json"; \
-    jq '.exports = {".": "./src/index.js", "./identity/v1": "./dist/proto/lwidp/identity/v1/identity_pb.js", "./catalog/v1": "./dist/proto/lwidp/catalog/v1/catalog_pb.js", "./cluster/v1": "./dist/proto/lwidp/cluster/v1/cluster_pb.js"}' "$pkgjson" > /tmp/p.json && \
+    jq '.exports = {".": "./src/index.js", "./identity/v1": "./dist/proto/lwidp/identity/v1/identity_pb.js", "./catalog/v1": "./dist/proto/lwidp/catalog/v1/catalog_pb.js", "./cluster/v1": "./dist/proto/lwidp/cluster/v1/cluster_pb.js", "./notification/v1": "./dist/proto/lwidp/notification/v1/notification_pb.js"}' "$pkgjson" > /tmp/p.json && \
     mv /tmp/p.json "$pkgjson" && \
     echo "patched contracts"
 # Build the service itself
@@ -52,6 +52,7 @@ RUN CONTRACTS_DEPLOY=$(find /deploy/node_modules -name "contracts" -type d 2>/de
     test -f "$CONTRACTS_DEPLOY/dist/proto/lwidp/identity/v1/identity_pb.js" || { echo "ERROR: identity_pb.js missing in deploy" >&2; exit 1; } && \
     test -f "$CONTRACTS_DEPLOY/dist/proto/lwidp/catalog/v1/catalog_pb.js" || { echo "ERROR: catalog_pb.js missing in deploy" >&2; exit 1; } && \
     test -f "$CONTRACTS_DEPLOY/dist/proto/lwidp/cluster/v1/cluster_pb.js" || { echo "ERROR: cluster_pb.js missing in deploy" >&2; exit 1; } && \
+    test -f "$CONTRACTS_DEPLOY/dist/proto/lwidp/notification/v1/notification_pb.js" || { echo "ERROR: notification_pb.js missing in deploy" >&2; exit 1; } && \
     echo "contracts deploy OK at $CONTRACTS_DEPLOY"
 # Ensure migrations dir exists so the COPY below is always valid (no-op for
 # services that don't use DB migrations, e.g. gateway-svc).

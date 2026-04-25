@@ -1,6 +1,5 @@
 import { createOidcVerifier, createRedisSessionStore } from "@lw-idp/auth";
-import { startServer } from "@lw-idp/service-kit";
-import { Redis } from "ioredis";
+import { createRedis, startServer } from "@lw-idp/service-kit";
 import { createUpstreamClients } from "./clients/index.js";
 import { loadConfig } from "./config.js";
 import { authPlugin } from "./http/auth.js";
@@ -14,10 +13,13 @@ import { createRedisStateStore } from "./services/state-store.js";
 
 const env = loadConfig();
 
-const redis = new Redis(env.REDIS_URL);
+// Single shared Redis client for the entire process. Every consumer below
+// (session store, state store, rate-limit plugin, idempotency plugin) receives
+// this same client. Only this boot script is allowed to `.quit()` it.
+const redis = createRedis(env.REDIS_URL);
 
-const sessionStore = createRedisSessionStore({ url: env.REDIS_URL });
-const stateStore = createRedisStateStore({ url: env.REDIS_URL });
+const sessionStore = createRedisSessionStore({ client: redis });
+const stateStore = createRedisStateStore({ client: redis });
 
 const verifier = createOidcVerifier({
   issuer: env.DEX_ISSUER,
@@ -35,7 +37,11 @@ await startServer({
   name: "gateway-svc",
   port: env.PORT,
   onShutdown: async () => {
-    await Promise.all([redis.quit(), sessionStore.close(), stateStore.close()]);
+    // The stores hold references to the shared `redis` client but do NOT
+    // own its lifecycle (see RedisSessionStoreOptions / RedisStateStoreOptions).
+    // Closing them is a no-op here — we quit the single shared client exactly once.
+    await Promise.all([sessionStore.close(), stateStore.close()]);
+    await redis.quit();
   },
   register: async (fastify) => {
     // Session middleware (cookie parse + session lookup) must be first

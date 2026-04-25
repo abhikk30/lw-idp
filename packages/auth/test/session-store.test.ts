@@ -1,4 +1,5 @@
 import { type RedisHandle, startRedis } from "@lw-idp/testing";
+import { Redis } from "ioredis";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type SessionRecord, createRedisSessionStore } from "../src/index.js";
 
@@ -84,5 +85,42 @@ describe("redisSessionStore", () => {
     // Alt namespace finds it
     expect(await alt.get("sess_x")).not.toBeUndefined();
     await alt.close();
+  });
+
+  it("does not close an externally-provided client on store.close()", async () => {
+    const externalClient = new Redis(redis.url);
+    // Wait for the client to be ready so we can assert status transitions below.
+    await new Promise<void>((resolve, reject) => {
+      if (externalClient.status === "ready") {
+        resolve();
+        return;
+      }
+      externalClient.once("ready", () => resolve());
+      externalClient.once("error", reject);
+    });
+    expect(externalClient.status).toBe("ready");
+
+    const externalStore = createRedisSessionStore({ client: externalClient });
+    await externalStore.set(
+      "sess_ext",
+      {
+        userId: "u_ext",
+        email: "e@x",
+        displayName: "E",
+        teams: [],
+        createdAt: new Date().toISOString(),
+      },
+      { ttlSeconds: 60 },
+    );
+    expect(await externalStore.get("sess_ext")).not.toBeUndefined();
+
+    await externalStore.close();
+    // Ownership contract: when `client` is passed in, the store must NOT close it.
+    expect(externalClient.status).toBe("ready");
+
+    // The external client is still usable after the store is closed.
+    await externalClient.set("probe:after-close", "1");
+    expect(await externalClient.get("probe:after-close")).toBe("1");
+    await externalClient.quit();
   });
 });

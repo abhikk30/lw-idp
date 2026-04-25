@@ -1,4 +1,6 @@
 export const subjects = {
+  // wildcard for consumers that want every idp.* event
+  allWildcard: "idp.>",
   // identity
   identityUserCreated: "idp.identity.user.created",
   identityTeamCreated: "idp.identity.team.created",

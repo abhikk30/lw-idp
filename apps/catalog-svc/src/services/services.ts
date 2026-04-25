@@ -62,6 +62,9 @@ export async function createService(
         type: created.type,
         lifecycle: created.lifecycle,
         ownerTeamId: created.ownerTeamId ?? undefined,
+        // owner_team_id duplicates ownerTeamId so notification-svc authz can filter on
+        // the snake_case key it uses in its rule table.
+        owner_team_id: created.ownerTeamId ?? undefined,
         tags: input.tags ?? [],
       },
       ...(input.actorUserId !== undefined ? { actor: { userId: input.actorUserId } } : {}),
@@ -135,6 +138,9 @@ export async function updateService(
         slug: updated.slug,
         name: updated.name,
         lifecycle: updated.lifecycle,
+        // owner_team_id is required by notification-svc authz so owning-team members
+        // receive the fan-out for service updates.
+        owner_team_id: updated.ownerTeamId ?? undefined,
       },
       ...(input.actorUserId !== undefined ? { actor: { userId: input.actorUserId } } : {}),
     });
@@ -168,7 +174,13 @@ export async function deleteService(
     const envelope = createEnvelope({
       type: "idp.catalog.service.deleted",
       source: "catalog-svc",
-      data: { id: existing.id, slug: existing.slug },
+      // owner_team_id is required by notification-svc authz so owning-team members
+      // receive the fan-out for service deletions.
+      data: {
+        id: existing.id,
+        slug: existing.slug,
+        owner_team_id: existing.ownerTeamId ?? undefined,
+      },
       ...(input.actorUserId !== undefined ? { actor: { userId: input.actorUserId } } : {}),
     });
     await tx.insert(outbox).values({

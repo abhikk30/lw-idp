@@ -12,15 +12,26 @@ export interface StateStore {
   close(): Promise<void>;
 }
 
-export interface RedisStateStoreOptions {
-  url: string;
+/**
+ * Options for `createRedisStateStore`.
+ *
+ * Exactly one of `url` or `client` must be provided:
+ *  - `url`: the store owns the underlying ioredis client and will `quit()` it
+ *    on `.close()`.
+ *  - `client`: an externally-owned ioredis client. The store will NOT close
+ *    this client on `.close()` — the caller retains lifecycle ownership.
+ */
+export type RedisStateStoreOptions = {
   keyPrefix?: string;
   ttlSeconds?: number;
-  redisOptions?: RedisOptions;
-}
+} & (
+  | { url: string; redisOptions?: RedisOptions; client?: never }
+  | { client: Redis; url?: never; redisOptions?: never }
+);
 
 export function createRedisStateStore(opts: RedisStateStoreOptions): StateStore {
-  const client = new Redis(opts.url, opts.redisOptions ?? {});
+  const owned = opts.client === undefined;
+  const client: Redis = opts.client ?? new Redis(opts.url as string, opts.redisOptions ?? {});
   const prefix = opts.keyPrefix ?? "lw-idp:oidc-state:";
   const ttl = opts.ttlSeconds ?? 600;
 
@@ -44,7 +55,9 @@ export function createRedisStateStore(opts: RedisStateStoreOptions): StateStore 
       }
     },
     async close() {
-      await client.quit();
+      if (owned) {
+        await client.quit();
+      }
     },
   };
 }

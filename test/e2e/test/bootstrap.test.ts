@@ -3,8 +3,10 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-node";
+import { type SessionRecord, createRedisSessionStore } from "@lw-idp/auth";
 import { CatalogService, Lifecycle, ServiceType } from "@lw-idp/contracts/catalog/v1";
 import { ClusterService, Environment, Provider } from "@lw-idp/contracts/cluster/v1";
+import { openWsClient } from "@lw-idp/testing";
 import { execa } from "execa";
 import {
   AckPolicy,
@@ -14,6 +16,7 @@ import {
   connect as natsConnect,
 } from "nats";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import WebSocket from "ws";
 
 // Resolve the monorepo root (test/e2e is two levels below root).
 const repoRoot = join(fileURLToPath(import.meta.url), "..", "..", "..", "..");
@@ -386,4 +389,257 @@ describe("gateway-svc browser-flow surface via ingress", () => {
     );
     expect(res.status).toBe(401);
   });
+});
+
+// ---------------------------------------------------------------------------
+// POST helper that mirrors requestWithHost but allows a JSON body, cookie,
+// and Idempotency-Key. Kept local because it's only used by the WS fan-out
+// describe below.
+// ---------------------------------------------------------------------------
+function postJsonWithHost(
+  url: string,
+  host: string,
+  body: unknown,
+  extra?: Record<string, string>,
+): Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string }> {
+  const u = new URL(url);
+  const payload = JSON.stringify(body);
+  return new Promise((resolve, reject) => {
+    const req = http.request(
+      {
+        hostname: u.hostname,
+        port: u.port,
+        path: u.pathname + u.search,
+        method: "POST",
+        headers: {
+          host,
+          "content-type": "application/json",
+          "content-length": Buffer.byteLength(payload).toString(),
+          ...(extra ?? {}),
+        },
+      },
+      (res) => {
+        let data = "";
+        res.on("data", (c: Buffer) => {
+          data += c;
+        });
+        res.on("end", () =>
+          resolve({ status: res.statusCode ?? 0, headers: res.headers, body: data }),
+        );
+      },
+    );
+    req.on("error", reject);
+    req.write(payload);
+    req.end();
+  });
+}
+
+describe("notification-svc WS fan-out via ingress", () => {
+  // Stable seed identifiers. The user `gh|c3-smoke` and team `platform-admins`
+  // are created once during the C3 smoke test (see plan §"Live verification (C3)")
+  // and persisted in the kind-lw-idp-dev cluster. Each test run seeds a fresh
+  // session in Dragonfly under a unique sid so we don't race with other tests
+  // (or wscat sessions left around by a developer).
+  const SEED_USER_ID = "c48c7b8c-ee6f-43ec-a8d3-a22425919653";
+  const SEED_USER_SUBJECT = "gh|c3-smoke";
+  const SEED_TEAM_ID = "886dbc66-bbaf-45ef-8995-25d390135f9e";
+  const SEED_TEAM_SLUG = "platform-admins";
+
+  let ingressPf: ReturnType<typeof execa> | undefined;
+  let dragonflyPf: ReturnType<typeof execa> | undefined;
+  let sessionStoreClose: (() => Promise<void>) | undefined;
+  let deleteSession: (() => Promise<void>) | undefined;
+  let sid: string;
+
+  const ingressPort = 14081; // distinct from the gateway describe (14080)
+  const dragonflyPort = 16379;
+
+  beforeAll(async () => {
+    // Port-forward ingress-nginx (HTTP + WS) on a dedicated port.
+    ingressPf = execa("kubectl", [
+      "-n",
+      "ingress-nginx",
+      "port-forward",
+      "svc/ingress-nginx-controller",
+      `${ingressPort}:80`,
+    ]);
+    ingressPf.catch(() => {});
+
+    // Port-forward Dragonfly so we can seed a session via ioredis.
+    dragonflyPf = execa("kubectl", [
+      "-n",
+      "dragonfly-system",
+      "port-forward",
+      "svc/df",
+      `${dragonflyPort}:6379`,
+    ]);
+    dragonflyPf.catch(() => {});
+
+    // Allow port-forwards to bind.
+    await new Promise((r) => setTimeout(r, 3_000));
+
+    // Seed the session record at lw-idp:session:<sid> with a fresh sid per run.
+    sid = `sess_e2e_d1_${Date.now()}`;
+    const sessionStore = createRedisSessionStore({
+      url: `redis://127.0.0.1:${dragonflyPort}`,
+    });
+    sessionStoreClose = () => sessionStore.close();
+    const session: SessionRecord = {
+      userId: SEED_USER_ID,
+      subject: SEED_USER_SUBJECT,
+      email: "c3-smoke@test",
+      displayName: "C3 Smoke",
+      teams: [{ id: SEED_TEAM_ID, slug: SEED_TEAM_SLUG, name: "Platform Admins" }],
+      createdAt: new Date().toISOString(),
+    };
+    await sessionStore.set(sid, session, { ttlSeconds: 600 });
+    deleteSession = async () => {
+      await sessionStore.delete(sid);
+    };
+  }, 60_000);
+
+  afterAll(async () => {
+    try {
+      await deleteSession?.();
+    } catch {
+      // best-effort
+    }
+    try {
+      await sessionStoreClose?.();
+    } catch {
+      // best-effort
+    }
+    ingressPf?.kill("SIGTERM");
+    dragonflyPf?.kill("SIGTERM");
+  });
+
+  it("notification-svc Ingress route exists for /ws/stream", async () => {
+    const out = await kubectl(
+      "-n",
+      "lw-idp",
+      "get",
+      "ing",
+      "notification-svc",
+      "-o",
+      "jsonpath={.spec.rules[*].http.paths[*].path}={.spec.rules[*].http.paths[*].backend.service.name}",
+    );
+    expect(out).toContain("/ws/stream");
+    expect(out).toContain("notification-svc");
+  });
+
+  it("WS connects with seeded session and receives welcome frame", async () => {
+    const ws = openWsClient({
+      url: `ws://127.0.0.1:${ingressPort}/ws/stream`,
+      cookie: `lw-sid=${sid}`,
+      headers: { Host: "portal.lw-idp.local" },
+      handshakeTimeoutMs: 5_000,
+    });
+    try {
+      await ws.opened;
+      const welcome = await ws.waitFor<{ type: string; userId: string }>(
+        (m): m is { type: string; userId: string } =>
+          typeof m === "object" && (m as { type?: string }).type === "welcome",
+        5_000,
+      );
+      expect(welcome.type).toBe("welcome");
+      expect(welcome.userId).toBe(SEED_USER_ID);
+    } finally {
+      await ws.close();
+    }
+  }, 30_000);
+
+  it("WS receives idp.catalog.service.created within 5s of POST /api/v1/services", async () => {
+    const ws = openWsClient({
+      url: `ws://127.0.0.1:${ingressPort}/ws/stream`,
+      cookie: `lw-sid=${sid}`,
+      headers: { Host: "portal.lw-idp.local" },
+      handshakeTimeoutMs: 5_000,
+    });
+    try {
+      await ws.opened;
+      // Wait for welcome so the connection is registered before we trigger the event.
+      await ws.waitFor<{ type: string }>(
+        (m): m is { type: string } =>
+          typeof m === "object" && (m as { type?: string }).type === "welcome",
+        5_000,
+      );
+
+      const slug = `e2e-d1-${Date.now()}`;
+      const res = await postJsonWithHost(
+        `http://127.0.0.1:${ingressPort}/api/v1/services`,
+        "portal.lw-idp.local",
+        {
+          slug,
+          name: `E2E D1 ${slug}`,
+          description: "WS fan-out e2e",
+          type: "service",
+          lifecycle: "experimental",
+          ownerTeamId: SEED_TEAM_ID,
+          tags: ["e2e", "d1"],
+        },
+        {
+          cookie: `lw-sid=${sid}`,
+          "idempotency-key": `e2e-d1-${slug}`,
+        },
+      );
+      expect(res.status).toBe(201);
+
+      const frame = await ws.waitFor<{
+        type: string;
+        entity: string;
+        action: string;
+        payload: { slug: string; ownerTeamId?: string };
+      }>(
+        (
+          m,
+        ): m is {
+          type: string;
+          entity: string;
+          action: string;
+          payload: { slug: string; ownerTeamId?: string };
+        } => {
+          if (typeof m !== "object" || m === null) {
+            return false;
+          }
+          const v = m as { type?: string; payload?: { slug?: string } };
+          return v.type === "idp.catalog.service.created" && v.payload?.slug === slug;
+        },
+        5_000,
+      );
+      expect(frame.type).toBe("idp.catalog.service.created");
+      expect(frame.entity).toBe("service");
+      expect(frame.action).toBe("created");
+      expect(frame.payload.slug).toBe(slug);
+    } finally {
+      await ws.close();
+    }
+  }, 30_000);
+
+  it("WS closes with 4401 when no cookie present", async () => {
+    // openWsClient is convenient when we expect a successful handshake. For an
+    // expected-close-after-handshake we drop down to the underlying ws lib so
+    // we can capture the close code reliably.
+    const ws = new WebSocket(`ws://127.0.0.1:${ingressPort}/ws/stream`, {
+      headers: { Host: "portal.lw-idp.local" },
+      handshakeTimeout: 5_000,
+    });
+    try {
+      const closeInfo = await new Promise<{ code: number; reason: string }>((resolve, reject) => {
+        const t = setTimeout(() => reject(new Error("ws close timeout")), 10_000);
+        ws.on("close", (code, reason) => {
+          clearTimeout(t);
+          resolve({ code, reason: reason.toString("utf8") });
+        });
+        ws.on("error", () => {
+          // Swallow — we only care about the close frame.
+        });
+      });
+      expect(closeInfo.code).toBe(4401);
+      expect(closeInfo.reason).toBe("unauthorized");
+    } finally {
+      if (ws.readyState !== WebSocket.CLOSED) {
+        ws.terminate();
+      }
+    }
+  }, 30_000);
 });

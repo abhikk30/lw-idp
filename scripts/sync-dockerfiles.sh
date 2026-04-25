@@ -16,6 +16,7 @@ TARGETS=(
   "apps/catalog-svc/Dockerfile"
   "apps/cluster-svc/Dockerfile"
   "apps/gateway-svc/Dockerfile"
+  "apps/notification-svc/Dockerfile"
 )
 
 mode="${1:-}"
