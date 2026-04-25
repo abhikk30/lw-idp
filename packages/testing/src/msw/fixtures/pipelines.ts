@@ -1,14 +1,6 @@
-export interface PipelineFixture {
-  id: string;
-  serviceSlug: string;
-  branch: string;
-  status: "success" | "failed" | "running";
-  triggeredBy: string;
-  createdAt: string;
-  durationSeconds: number;
-}
+import type { Pipeline } from "@lw-idp/contracts";
 
-export const pipelinesFixture: PipelineFixture[] = [
+export const pipelinesFixture: Pipeline[] = [
   {
     id: "pipe-001",
     serviceSlug: "checkout",

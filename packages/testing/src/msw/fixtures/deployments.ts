@@ -1,14 +1,6 @@
-export interface DeploymentFixture {
-  id: string;
-  serviceSlug: string;
-  environment: "prod" | "stage" | "dev";
-  status: "succeeded" | "failed" | "in_progress";
-  commitSha: string;
-  createdAt: string;
-  durationSeconds: number;
-}
+import type { Deployment } from "@lw-idp/contracts";
 
-export const deploymentsFixture: DeploymentFixture[] = [
+export const deploymentsFixture: Deployment[] = [
   {
     id: "dep-001",
     serviceSlug: "checkout",
