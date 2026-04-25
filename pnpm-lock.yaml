@@ -560,6 +560,9 @@ importers:
       vitest:
         specifier: 'catalog:'
         version: 2.1.4(@types/node@22.7.5)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.6.8(@types/node@22.7.5)(typescript@5.6.3))
+      vitest-axe:
+        specifier: 0.1.0
+        version: 0.1.0(vitest@2.1.4(@types/node@22.7.5)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.6.8(@types/node@22.7.5)(typescript@5.6.3)))
       ws:
         specifier: 8.18.0
         version: 8.18.0
@@ -3543,6 +3546,10 @@ packages:
   avvio@9.2.0:
     resolution: {integrity: sha512-2t/sy01ArdHHE0vRH5Hsay+RtCZt3dLPji7W7/MMOCEgze5b7SNDC4j5H6FnVgPkI1MTNFGzHdHrVXDDl7QSSQ==}
 
+  axe-core@4.11.3:
+    resolution: {integrity: sha512-zBQouZixDTbo3jMGqHKyePxYxr1e5W8UdTmBQ7sNtaA9M2bE32daxxPLS/jojhKOHxQ7LWwPjfiwf/fhaJWzlg==}
+    engines: {node: '>=4'}
+
   b4a@1.8.0:
     resolution: {integrity: sha512-qRuSmNSkGQaHwNbM7J78Wwy+ghLEYF1zNrSeMxj4Kgw6y33O3mXcQ6Ie9fRvfU/YnxWkOchPXbaLb73TkIsfdg==}
     peerDependencies:
@@ -4590,6 +4597,9 @@ packages:
     resolution: {integrity: sha512-gvVijfZvn7R+2qyPX8mAuKcFGDf6Nc61GdvGafQsHL0sBIxfKzA+usWn4GFC/bk+QdwPUD4kWFJLhElipq+0VA==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
+  lodash-es@4.18.1:
+    resolution: {integrity: sha512-J8xewKD/Gk22OZbhpOVSwcs60zhd95ESDwezOFuA3/099925PdHJ7OFHNTGtajL3AlZkykD32HykiMo+BIBI8A==}
+
   lodash.camelcase@4.3.0:
     resolution: {integrity: sha512-TwuEnCnxbc3rAvhf/LbG7tJUDzhqXyFnv3dtzLOPgCG/hODL7WFnsbwktkD7yUV0RrreP/l1PALq/YSg6VvjlA==}
 
@@ -5614,6 +5624,11 @@ packages:
         optional: true
       terser:
         optional: true
+
+  vitest-axe@0.1.0:
+    resolution: {integrity: sha512-jvtXxeQPg8R/2ANTY8QicA5pvvdRP4F0FsVUAHANJ46YCDASie/cuhlSzu0DGcLmZvGBSBNsNuK3HqfaeknyvA==}
+    peerDependencies:
+      vitest: '>=0.16.0'
 
   vitest@2.1.4:
     resolution: {integrity: sha512-eDjxbVAJw1UJJCHr5xr/xM86Zx+YxIEXGAR+bmnEID7z9qWfoxpHw0zdobz+TQAFOLT+nEXz3+gx6nUJ7RgmlQ==}
@@ -8353,6 +8368,8 @@ snapshots:
       '@fastify/error': 4.2.0
       fastq: 1.20.1
 
+  axe-core@4.11.3: {}
+
   b4a@1.8.0: {}
 
   balanced-match@1.0.2: {}
@@ -9380,6 +9397,8 @@ snapshots:
   locate-path@7.2.0:
     dependencies:
       p-locate: 6.0.0
+
+  lodash-es@4.18.1: {}
 
   lodash.camelcase@4.3.0: {}
 
@@ -10445,6 +10464,16 @@ snapshots:
       '@types/node': 25.6.0
       fsevents: 2.3.3
       lightningcss: 1.32.0
+
+  vitest-axe@0.1.0(vitest@2.1.4(@types/node@22.7.5)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.6.8(@types/node@22.7.5)(typescript@5.6.3))):
+    dependencies:
+      aria-query: 5.3.2
+      axe-core: 4.11.3
+      chalk: 5.6.2
+      dom-accessibility-api: 0.5.16
+      lodash-es: 4.18.1
+      redent: 3.0.0
+      vitest: 2.1.4(@types/node@22.7.5)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.6.8(@types/node@22.7.5)(typescript@5.6.3))
 
   vitest@2.1.4(@types/node@22.7.5)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.6.8(@types/node@22.7.5)(typescript@5.6.3)):
     dependencies:

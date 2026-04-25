@@ -50,6 +50,7 @@
     "tailwindcss": "4.1.11",
     "@tailwindcss/postcss": "4.1.11",
     "ws": "8.18.0",
-    "@types/ws": "8.5.14"
+    "@types/ws": "8.5.14",
+    "vitest-axe": "0.1.0"
   }
 }
