@@ -17,6 +17,7 @@ import {
   SheetTrigger,
 } from "@lw-idp/ui/components/sheet";
 import type { ReactNode } from "react";
+import { CommandPalette } from "./command-palette.client.js";
 import { SidebarNav } from "./sidebar.client.js";
 import { ThemeToggle } from "./theme-toggle.client.js";
 
@@ -60,8 +61,7 @@ export function Topbar({ user }: TopbarProps): ReactNode {
 
       <ThemeToggle />
 
-      {/* C3 will replace this slot with the real <CommandPaletteTrigger />. */}
-      <div data-slot="command-palette" aria-hidden />
+      <CommandPalette />
 
       {/* User dropdown */}
       <DropdownMenu>

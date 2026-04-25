@@ -5,6 +5,20 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { WebSocket as WsLibWebSocket } from "ws";
 import { AppShell } from "../../src/components/app-shell.client.js";
 
+// Topbar mounts CommandPalette which calls useRouter; the AppRouterContext is
+// not provided in this isolated render, so stub the navigation hooks.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: () => {},
+    replace: () => {},
+    back: () => {},
+    forward: () => {},
+    refresh: () => {},
+    prefetch: () => Promise.resolve(),
+  }),
+  usePathname: () => "/",
+}));
+
 beforeAll(() => {
   // EventStreamProvider opens a real WS — point it nowhere harmless and let
   // it fail-and-reconnect. We don't actually receive any frames in this
