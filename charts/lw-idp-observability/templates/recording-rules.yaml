@@ -1,0 +1,76 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: lw-idp-recording-rules
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "lw-idp-observability.labels" . | nindent 4 }}
+    release: kube-prometheus-stack
+    prometheus: kube-prometheus
+spec:
+  groups:
+    - name: lw-idp.requests
+      interval: 30s
+      rules:
+        - record: lwidp:requests:rate5m
+          expr: |
+            sum by (kubernetes_namespace, kubernetes_pod_name) (
+              rate(http_request_duration_seconds_count{kubernetes_namespace="lw-idp"}[5m])
+            )
+        - record: lwidp:errors:rate5m
+          expr: |
+            sum by (kubernetes_namespace, kubernetes_pod_name) (
+              rate(http_request_duration_seconds_count{kubernetes_namespace="lw-idp", status_code=~"5.."}[5m])
+            )
+        - record: lwidp:duration:p95_5m
+          expr: |
+            histogram_quantile(
+              0.95,
+              sum by (le, kubernetes_namespace, kubernetes_pod_name) (
+                rate(http_request_duration_seconds_bucket{kubernetes_namespace="lw-idp"}[5m])
+              )
+            )
+        - record: lwidp:duration:p99_5m
+          expr: |
+            histogram_quantile(
+              0.99,
+              sum by (le, kubernetes_namespace, kubernetes_pod_name) (
+                rate(http_request_duration_seconds_bucket{kubernetes_namespace="lw-idp"}[5m])
+              )
+            )
+        - record: lwidp:success_ratio:5m
+          expr: |
+            sum by (kubernetes_namespace, kubernetes_pod_name) (
+              rate(http_request_duration_seconds_count{kubernetes_namespace="lw-idp", status_code=~"2.."}[5m])
+            )
+            /
+            ignoring(status_code) sum by (kubernetes_namespace, kubernetes_pod_name) (
+              rate(http_request_duration_seconds_count{kubernetes_namespace="lw-idp"}[5m])
+            )
+        - record: lwidp:success_ratio:1h
+          expr: |
+            sum by (kubernetes_namespace, kubernetes_pod_name) (
+              rate(http_request_duration_seconds_count{kubernetes_namespace="lw-idp", status_code=~"2.."}[1h])
+            )
+            /
+            ignoring(status_code) sum by (kubernetes_namespace, kubernetes_pod_name) (
+              rate(http_request_duration_seconds_count{kubernetes_namespace="lw-idp"}[1h])
+            )
+        - record: lwidp:success_ratio:6h
+          expr: |
+            sum by (kubernetes_namespace, kubernetes_pod_name) (
+              rate(http_request_duration_seconds_count{kubernetes_namespace="lw-idp", status_code=~"2.."}[6h])
+            )
+            /
+            ignoring(status_code) sum by (kubernetes_namespace, kubernetes_pod_name) (
+              rate(http_request_duration_seconds_count{kubernetes_namespace="lw-idp"}[6h])
+            )
+        - record: lwidp:success_ratio:30m
+          expr: |
+            sum by (kubernetes_namespace, kubernetes_pod_name) (
+              rate(http_request_duration_seconds_count{kubernetes_namespace="lw-idp", status_code=~"2.."}[30m])
+            )
+            /
+            ignoring(status_code) sum by (kubernetes_namespace, kubernetes_pod_name) (
+              rate(http_request_duration_seconds_count{kubernetes_namespace="lw-idp"}[30m])
+            )
