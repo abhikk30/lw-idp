@@ -725,12 +725,24 @@ importers:
       '@connectrpc/connect-node':
         specifier: 2.1.1
         version: 2.1.1(@bufbuild/protobuf@2.11.0)(@connectrpc/connect@2.1.1(@bufbuild/protobuf@2.11.0))
+      '@lw-idp/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@lw-idp/contracts':
         specifier: workspace:^
         version: link:../../packages/contracts
+      '@lw-idp/testing':
+        specifier: workspace:*
+        version: link:../../packages/testing
+      ioredis:
+        specifier: 5.4.2
+        version: 5.4.2
       nats:
         specifier: 2.28.2
         version: 2.28.2
+      ws:
+        specifier: 8.18.0
+        version: 8.18.0
     devDependencies:
       '@lw-idp/config':
         specifier: workspace:*
@@ -738,6 +750,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 22.7.5
+      '@types/ws':
+        specifier: 8.5.14
+        version: 8.5.14
       execa:
         specifier: 9.5.1
         version: 9.5.1
