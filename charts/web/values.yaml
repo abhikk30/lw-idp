@@ -28,3 +28,14 @@ probes:
     path: /api/healthz
   readiness:
     path: /api/readyz
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+  hosts:
+    - host: portal.lw-idp.local
+      paths:
+        - path: /
+          pathType: Prefix
