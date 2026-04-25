@@ -1,4 +1,4 @@
-"use server";
+import "server-only";
 
 import type { Pipeline, PipelineAdapter, PipelineList } from "@lw-idp/contracts";
 
