@@ -2,7 +2,9 @@ import type { StorybookConfig } from "@storybook/nextjs";
 
 const config: StorybookConfig = {
   stories: ["../src/**/*.stories.@(ts|tsx)", "../../../packages/ui/src/**/*.stories.@(ts|tsx)"],
-  addons: ["@storybook/addon-essentials", "@storybook/addon-interactions", "msw-storybook-addon"],
+  // We don't load msw-storybook-addon — its 2.0.5 release relies on
+  // `worker.context` which MSW v2.13 removed. preview.tsx wires MSW directly.
+  addons: ["@storybook/addon-essentials", "@storybook/addon-interactions"],
   framework: {
     name: "@storybook/nextjs",
     options: {},
