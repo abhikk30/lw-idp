@@ -17,14 +17,19 @@ function startEchoServer(): Promise<{
   port: number;
   emit: (data: object) => void;
   close: () => void;
+  closeAllWith: (code: number, reason: string) => void;
+  connectionCount: () => number;
 }> {
   return new Promise((resolve) => {
     const wss = new WebSocketServer({ port: 0 });
     wss.on("listening", () => {
       const port = (wss.address() as { port: number }).port;
       const sockets = new Set<import("ws").WebSocket>();
+      let acceptedCount = 0;
       wss.on("connection", (sock) => {
         sockets.add(sock);
+        acceptedCount += 1;
+        sock.on("close", () => sockets.delete(sock));
         // welcome frame
         sock.send(
           JSON.stringify({
@@ -50,6 +55,12 @@ function startEchoServer(): Promise<{
           }
           wss.close();
         },
+        closeAllWith: (code, reason) => {
+          for (const s of sockets) {
+            s.close(code, reason);
+          }
+        },
+        connectionCount: () => acceptedCount,
       });
     });
   });
@@ -122,6 +133,41 @@ describe("EventStreamProvider", () => {
     await new Promise((r) => setTimeout(r, 200));
 
     expect(invalidateSpy).not.toHaveBeenCalled();
+    server.close();
+  });
+
+  it("stops reconnect on 4xxx close code and surfaces session-expired toast", async () => {
+    const server = await startEchoServer();
+    const queryClient = new QueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <EventStreamProvider url={`ws://127.0.0.1:${server.port}`} reconnectMaxMs={5_000}>
+          <div>app</div>
+        </EventStreamProvider>
+        <Toaster />
+      </QueryClientProvider>,
+    );
+
+    // let connect
+    await new Promise((r) => setTimeout(r, 100));
+
+    // Close all server-side sockets with 4401 (unauthorized).
+    server.closeAllWith(4401, "unauthorized");
+
+    await waitFor(
+      () => {
+        expect(screen.getByText(/session expired/i)).toBeInTheDocument();
+      },
+      { timeout: 2000 },
+    );
+
+    // Wait an extra interval that would have triggered reconnect; assert no
+    // additional connection attempts.
+    const initialConns = server.connectionCount();
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(server.connectionCount()).toBe(initialConns);
+
     server.close();
   });
 });

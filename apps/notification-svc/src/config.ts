@@ -14,6 +14,11 @@ const EnvSchema = z.object({
   // NATS consumer
   CONSUMER_NAME_PREFIX: z.string().default("notification-svc"),
 
+  // Operator debug knob — when "1", consumer fan-out logs
+  // { type, recipients, totalConnections } at info level for each envelope.
+  // Default off (silent in prod). Flip with: kubectl set env deploy/notification-svc NOTIF_DEBUG_LOG=1
+  NOTIF_DEBUG_LOG: z.enum(["0", "1"]).default("0"),
+
   // Per-connection rate limiting (token bucket)
   RATE_LIMIT_PER_SEC: z.coerce.number().int().positive().default(100),
   RATE_LIMIT_BURST: z.coerce.number().int().positive().default(50),

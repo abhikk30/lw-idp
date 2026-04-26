@@ -5,6 +5,20 @@ import { type ReactNode, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { humanizeFrame, invalidationKeysFor } from "../lib/events/invalidation-map.js";
 
+/**
+ * 4xxx WebSocket close codes are application-class and treated as terminal —
+ * notification-svc emits 4401 when the user's session has expired. There is
+ * no point reconnecting because the next connect will be rejected the same
+ * way; instead we surface a "session expired" toast prompting reload.
+ *
+ * Standard 1xxx codes (1000 normal, 1001 going away, 1006 abnormal) still
+ * trigger backoff reconnect — those are network-level events that should
+ * recover.
+ */
+function isTerminalCloseCode(code: number): boolean {
+  return code >= 4000 && code < 5000;
+}
+
 export interface EventStreamProviderProps {
   /** WS URL (default: same-origin /ws/stream). Override for tests. */
   url?: string;
@@ -45,6 +59,7 @@ export function EventStreamProvider({
     stoppedRef.current = false;
     let backoffMs = 1_000;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let terminalToastShown = false;
 
     const connect = (): void => {
       if (stoppedRef.current) {
@@ -91,7 +106,24 @@ export function EventStreamProvider({
         toast(humanizeFrame(entity, action, frame.payload));
       });
 
-      ws.addEventListener("close", () => {
+      ws.addEventListener("close", (ev: CloseEvent) => {
+        if (isTerminalCloseCode(ev.code)) {
+          stoppedRef.current = true;
+          if (timer !== undefined) {
+            clearTimeout(timer);
+          }
+          if (!terminalToastShown) {
+            terminalToastShown = true;
+            toast.error("Session expired", {
+              description: "Reload the page to sign in again.",
+              action: {
+                label: "Reload",
+                onClick: () => window.location.reload(),
+              },
+            });
+          }
+          return;
+        }
         scheduleReconnect();
       });
 

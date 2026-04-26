@@ -13,6 +13,9 @@ build/
 # turbo
 .turbo/
 
+# Storybook build output
+apps/web/storybook-static/
+
 # test artifacts
 coverage/
 *.tsbuildinfo

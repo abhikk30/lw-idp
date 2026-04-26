@@ -9,10 +9,14 @@
     "start": "next start --port 3001 --hostname 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
+    "storybook": "storybook dev -p 6006 --no-open",
+    "build-storybook": "storybook build",
+    "test-storybook": "test-storybook --url http://127.0.0.1:6006",
     "clean": "rm -rf .next dist coverage .turbo"
   },
   "dependencies": {
     "@hookform/resolvers": "3.9.1",
+    "@lw-idp/auth": "workspace:*",
     "@lw-idp/contracts": "workspace:*",
     "@lw-idp/ui": "workspace:*",
     "@tanstack/react-query": "5.62.7",
@@ -47,10 +51,22 @@
     "@types/ws": "8.5.14",
     "jsdom": "25.0.1",
     "msw": "2.13.6",
+    "msw-storybook-addon": "2.0.5",
+    "storybook": "8.4.7",
+    "@storybook/nextjs": "8.4.7",
+    "@storybook/react": "8.4.7",
+    "@storybook/addon-essentials": "8.4.7",
+    "@storybook/addon-interactions": "8.4.7",
+    "@storybook/test": "8.4.7",
+    "@storybook/test-runner": "0.21.0",
+    "http-server": "14.1.1",
     "tailwindcss": "4.1.11",
     "typescript": "catalog:",
     "vitest": "catalog:",
     "vitest-axe": "0.1.0",
     "ws": "8.18.0"
+  },
+  "msw": {
+    "workerDirectory": ["public"]
   }
 }

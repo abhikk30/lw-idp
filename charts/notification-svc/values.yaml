@@ -76,3 +76,6 @@ extraEnv:
     value: "5000"
   - name: LOG_LEVEL
     value: "info"
+
+monitoring:
+  enabled: true

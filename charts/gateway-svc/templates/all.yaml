@@ -7,3 +7,5 @@
 {{ include "lw-idp-service.pdb" . }}
 ---
 {{ include "lw-idp-service.ingress" . }}
+---
+{{ include "lw-idp-service.serviceMonitor" . }}

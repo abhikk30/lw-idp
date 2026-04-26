@@ -1,0 +1,29 @@
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: lw-idp-routing
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "lw-idp-observability.labels" . | nindent 4 }}
+    release: kube-prometheus-stack
+spec:
+  route:
+    receiver: "lw-idp-warn"
+    groupBy: [alertname, service]
+    groupWait: 10s
+    groupInterval: 1m
+    repeatInterval: 1h
+    routes:
+      - matchers:
+          - { name: severity, value: page }
+        receiver: "lw-idp-page"
+        groupWait: 5s
+  receivers:
+    - name: "lw-idp-warn"
+      # No-op: log-only receiver. Routes that hit "warn" severity create
+      # an Alertmanager group but nothing leaves the cluster. P1.9 wires Slack.
+      webhookConfigs: []
+    - name: "lw-idp-page"
+      webhookConfigs:
+        - url: http://alert-debug-webhook.observability.svc.cluster.local/
+          sendResolved: true

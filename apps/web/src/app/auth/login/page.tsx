@@ -18,6 +18,7 @@
  *   For manual local testing, seed a session directly in Dragonfly (the
  *   same trick the F4 Playwright golden-path uses) — bypasses Dex.
  */
+import { isSafeRedirect } from "@lw-idp/auth";
 import { Button } from "@lw-idp/ui/components/button";
 import {
   Card,
@@ -32,37 +33,6 @@ export const dynamic = "force-dynamic";
 
 interface PageProps {
   searchParams: Promise<{ redirect?: string }>;
-}
-
-/**
- * Returns true iff `value` is a safe same-origin redirect target.
- * Allows: leading-slash absolute paths only.
- * Rejects: absolute URLs, protocol-relative URLs (//evil.com), bare paths,
- *   and anything that doesn't start with a single `/`.
- *
- * Defense-in-depth against open-redirect: gateway-svc currently calls
- * `reply.redirect(redirectAfter)` without validation, so we refuse to
- * forward anything that isn't a same-origin path. The deeper fix lives
- * on gateway-svc (filed as P1.8 IMP); this is web's contribution to
- * not creating the vector in the first place.
- */
-function isSafeRedirect(value: string): boolean {
-  if (typeof value !== "string" || value.length === 0) {
-    return false;
-  }
-  // Reject protocol-relative URLs first (//evil.com)
-  if (value.startsWith("//")) {
-    return false;
-  }
-  // Reject absolute URLs (http:, https:, javascript:, data:, etc.)
-  if (/^[a-z][a-z0-9+\-.]*:/i.test(value)) {
-    return false;
-  }
-  // Must start with `/` for an absolute same-origin path.
-  if (!value.startsWith("/")) {
-    return false;
-  }
-  return true;
 }
 
 async function startLogin(formData: FormData): Promise<void> {

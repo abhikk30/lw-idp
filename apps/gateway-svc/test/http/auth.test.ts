@@ -204,4 +204,32 @@ describe("gateway /auth/login + /auth/callback", () => {
     });
     expect(res.status).toBe(400);
   });
+
+  it("/auth/callback ignores unsafe redirectAfter and uses defaultRedirect", async () => {
+    // Reach the same in-process state store the gateway plugin closed over by
+    // pre-seeding a fresh state row whose redirectAfter is an attacker-controlled
+    // absolute URL. isSafeRedirect should reject it and the response Location
+    // should fall through to opts.defaultRedirect ("/").
+    //
+    // To preserve the closure over `stateStore`, we directly fetch /auth/login first
+    // with the malicious redirect — that uses the SAME stateStore instance the
+    // plugin holds and writes a state row we can subsequently complete via /callback.
+    const loginRes = await fetch(
+      `${gatewayUrl}/auth/login?redirect=${encodeURIComponent("https://evil.com")}`,
+      { redirect: "manual" },
+    );
+    expect(loginRes.status).toBe(302);
+    const dexLoc = loginRes.headers.get("location") ?? "";
+    const stateMatch = dexLoc.match(/[?&]state=([^&]+)/);
+    expect(stateMatch).not.toBeNull();
+    const evilState = stateMatch?.[1] ?? "";
+
+    const res = await fetch(`${gatewayUrl}/auth/callback?code=code-ok&state=${evilState}`, {
+      redirect: "manual",
+    });
+    expect(res.status).toBe(302);
+    const location = res.headers.get("location") ?? "";
+    expect(location).toBe("/");
+    expect(location).not.toContain("evil.com");
+  });
 });

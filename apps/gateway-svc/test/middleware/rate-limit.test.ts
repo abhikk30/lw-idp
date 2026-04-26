@@ -7,7 +7,9 @@ import {
 import { type LwIdpServer, buildServer } from "@lw-idp/service-kit";
 import { type RedisHandle, startRedis } from "@lw-idp/testing";
 import { Redis } from "ioredis";
+import { register } from "prom-client";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { ratelimitShedCounter } from "../../src/metrics.js";
 import { rateLimitPlugin } from "../../src/middleware/rate-limit.js";
 import { sessionPlugin } from "../../src/middleware/session.js";
 
@@ -141,5 +143,43 @@ describe("rate-limit plugin", () => {
       (await server.fastify.inject({ method: "GET", url: "/ping", headers: { cookie: cookieB } }))
         .statusCode,
     ).toBe(200);
+  });
+
+  it("ratelimitShedCounter increments on 429", async () => {
+    ratelimitShedCounter.reset();
+    const sessionStore = memorySession();
+    const rec: SessionRecord = {
+      userId: "u_rl_metric",
+      email: "m@x",
+      displayName: "M",
+      teams: [],
+      createdAt: new Date().toISOString(),
+    };
+    await sessionStore.set("sess_rlm", rec, { ttlSeconds: 60 });
+
+    server = await buildServer({
+      name: "gw-rl-metric-test",
+      port: 0,
+      register: async (fastify) => {
+        await fastify.register(sessionPlugin, { store: sessionStore });
+        await fastify.register(rateLimitPlugin, {
+          redis: redisClient,
+          max: 1,
+          timeWindowMs: 10_000,
+        });
+        fastify.get("/ping", async () => ({ pong: true }));
+      },
+    });
+
+    const cookie = serializeSessionCookie("sess_rlm", { secure: false, maxAgeSeconds: 60 });
+    await server.fastify.inject({ method: "GET", url: "/ping", headers: { cookie } });
+    const over = await server.fastify.inject({
+      method: "GET",
+      url: "/ping",
+      headers: { cookie },
+    });
+    expect(over.statusCode).toBe(429);
+    const text = await register.metrics();
+    expect(text).toMatch(/lwidp_gateway_ratelimit_shed_total\{[^}]*\}/);
   });
 });

@@ -2,6 +2,7 @@ import "@lw-idp/ui/styles/globals.css";
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import type { ReactNode } from "react";
+import { themeInitScript } from "../lib/theme/script.js";
 import { Providers } from "./providers.client.js";
 
 const inter = Inter({
@@ -24,6 +25,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }): ReactNode {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* biome-ignore lint/security/noDangerouslySetInnerHtml: required for synchronous theme application before paint */}
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body
         className={`${inter.variable} ${jetbrains.variable} font-sans antialiased min-h-screen bg-background text-foreground`}
       >

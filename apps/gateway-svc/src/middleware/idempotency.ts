@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
 import type { Redis } from "ioredis";
+import { ensureGatewayMetricsRegistered, idempotencyReplaysCounter } from "../metrics.js";
 
 export interface IdempotencyPluginOptions {
   redis: Redis;
@@ -29,6 +30,9 @@ function hashRequestBody(body: unknown): string {
 }
 
 const idempotencyPluginFn: FastifyPluginAsync<IdempotencyPluginOptions> = async (fastify, opts) => {
+  // Re-attach our metrics in case fastify-metrics' clearRegisterOnInit wiped them.
+  ensureGatewayMetricsRegistered();
+
   const prefix = opts.keyPrefix ?? "lw-idp:idem:";
   const ttl = opts.ttlSeconds;
   const methods = new Set((opts.methods ?? [...UNSAFE_METHODS]).map((m) => m.toUpperCase()));
@@ -64,6 +68,9 @@ const idempotencyPluginFn: FastifyPluginAsync<IdempotencyPluginOptions> = async 
         .send({ code: "conflict", message: "Idempotency-Key reused with different request body" });
       return;
     }
+
+    const route = req.routeOptions?.url ?? req.url.split("?")[0] ?? "unknown";
+    idempotencyReplaysCounter.inc({ route });
 
     await reply
       .code(stored.status)
