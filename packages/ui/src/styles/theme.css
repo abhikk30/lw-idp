@@ -1,12 +1,11 @@
-@import "tailwindcss";
-
-/* Tailwind v4 auto-scans relative to this file's location.
- * In a monorepo, that misses apps/web/src and packages/ui/src/components.
- * Explicit @source directives keep them in scope.
+/*
+ * Design-system theme tokens. Imported by app entry-point CSS files
+ * (apps/web/src/styles/globals.css, future Storybook preview, etc.).
+ *
+ * No @import "tailwindcss" or @layer directives here — those belong in
+ * the consumer's entry-point CSS so PostCSS picks them up. This file is
+ * just the token surface.
  */
-@source "../components/**/*.{ts,tsx}";
-@source "../../../../apps/web/src/**/*.{ts,tsx}";
-
 @theme {
   --color-border: hsl(214.3 31.8% 91.4%);
   --color-input: hsl(214.3 31.8% 91.4%);
@@ -53,14 +52,4 @@
   --color-popover-foreground: hsl(210 40% 98%);
   --color-card: hsl(222.2 84% 4.9%);
   --color-card-foreground: hsl(210 40% 98%);
-}
-
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
-  }
 }
