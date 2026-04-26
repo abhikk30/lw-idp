@@ -1,0 +1,23 @@
+/*
+ * Web app entry-point CSS. Lives inside apps/web/src so Next.js processes it
+ * through PostCSS + the @tailwindcss/postcss plugin (Next does NOT process
+ * CSS imported from node_modules / workspace packages).
+ *
+ * Theme tokens (CSS vars + dark mode) live in @lw-idp/ui's theme.css and are
+ * imported here so all apps share the same design system.
+ */
+@import "tailwindcss";
+@import "@lw-idp/ui/styles/theme.css";
+
+@source "../**/*.{ts,tsx}";
+@source "../../../../packages/ui/src/components/**/*.{ts,tsx}";
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}

@@ -44,11 +44,16 @@ const rateLimitPluginFn: FastifyPluginAsync<RateLimitPluginOptions> = async (fas
   // Increment the shed counter once per 429 reply. onSend fires after the
   // status code is finalized; @fastify/rate-limit's errorResponseBuilder
   // doesn't surface the request, so we observe at the reply boundary.
-  fastify.addHook("onSend", async (req, reply) => {
+  //
+  // Async onSend MUST return the payload — returning undefined would overwrite
+  // the route's already-set response body and trigger ERR_HTTP_HEADERS_SENT
+  // when the framework tries to re-send.
+  fastify.addHook("onSend", async (req, reply, payload) => {
     if (reply.statusCode === 429) {
       const route = req.routeOptions?.url ?? req.url.split("?")[0] ?? "unknown";
       ratelimitShedCounter.inc({ route });
     }
+    return payload;
   });
 };
 

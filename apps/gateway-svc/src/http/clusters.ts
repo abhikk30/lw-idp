@@ -129,7 +129,7 @@ const clustersPluginFn: FastifyPluginAsync<ClustersPluginOptions> = async (fasti
       });
     } catch (err) {
       if (mapConnectError(err, reply)) {
-        return;
+        return reply;
       }
       throw err;
     }
@@ -162,7 +162,7 @@ const clustersPluginFn: FastifyPluginAsync<ClustersPluginOptions> = async (fasti
       return reply.code(201).send(toRestCluster(created.cluster));
     } catch (err) {
       if (mapConnectError(err, reply)) {
-        return;
+        return reply;
       }
       throw err;
     }
@@ -177,7 +177,7 @@ const clustersPluginFn: FastifyPluginAsync<ClustersPluginOptions> = async (fasti
       return reply.send(toRestCluster(got.cluster));
     } catch (err) {
       if (mapConnectError(err, reply)) {
-        return;
+        return reply;
       }
       throw err;
     }
@@ -206,7 +206,7 @@ const clustersPluginFn: FastifyPluginAsync<ClustersPluginOptions> = async (fasti
       return reply.send(toRestCluster(updated.cluster));
     } catch (err) {
       if (mapConnectError(err, reply)) {
-        return;
+        return reply;
       }
       throw err;
     }
@@ -218,7 +218,7 @@ const clustersPluginFn: FastifyPluginAsync<ClustersPluginOptions> = async (fasti
       return reply.code(204).send();
     } catch (err) {
       if (mapConnectError(err, reply)) {
-        return;
+        return reply;
       }
       throw err;
     }

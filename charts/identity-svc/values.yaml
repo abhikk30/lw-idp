@@ -40,7 +40,9 @@ extraEnv:
   - name: NATS_URL
     value: "nats://nats.nats-system.svc.cluster.local:4222"
   - name: DEX_ISSUER
-    value: "http://dex.dex.svc.cluster.local:5556"
+    # Must match Dex's `issuer` config — used to verify `iss` claim on
+    # id_tokens. CoreDNS rewrites resolve dex.lw-idp.local in-cluster.
+    value: "http://dex.lw-idp.local"
   - name: DEX_AUDIENCE
     value: "lw-idp-gateway"
   - name: RUN_MIGRATIONS
