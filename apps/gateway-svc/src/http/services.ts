@@ -137,7 +137,7 @@ const servicesPluginFn: FastifyPluginAsync<ServicesPluginOptions> = async (fasti
       });
     } catch (err) {
       if (mapConnectError(err, reply)) {
-        return;
+        return reply;
       }
       fastify.log.error({ err }, "listServices failed");
       return reply.code(500).send({ code: "internal", message: "list failed" });
@@ -173,7 +173,7 @@ const servicesPluginFn: FastifyPluginAsync<ServicesPluginOptions> = async (fasti
       return reply.code(201).send(toRestService(created.service));
     } catch (err) {
       if (mapConnectError(err, reply)) {
-        return;
+        return reply;
       }
       throw err;
     }
@@ -188,7 +188,7 @@ const servicesPluginFn: FastifyPluginAsync<ServicesPluginOptions> = async (fasti
       return reply.send(toRestService(got.service));
     } catch (err) {
       if (mapConnectError(err, reply)) {
-        return;
+        return reply;
       }
       throw err;
     }
@@ -221,7 +221,7 @@ const servicesPluginFn: FastifyPluginAsync<ServicesPluginOptions> = async (fasti
       return reply.send(toRestService(updated.service));
     } catch (err) {
       if (mapConnectError(err, reply)) {
-        return;
+        return reply;
       }
       throw err;
     }
@@ -233,7 +233,7 @@ const servicesPluginFn: FastifyPluginAsync<ServicesPluginOptions> = async (fasti
       return reply.code(204).send();
     } catch (err) {
       if (mapConnectError(err, reply)) {
-        return;
+        return reply;
       }
       throw err;
     }
