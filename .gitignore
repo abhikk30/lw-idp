@@ -48,3 +48,7 @@ packages/contracts/dist-ts/
 
 # OS
 Thumbs.db
+
+# Local-only OAuth client creds for dev
+oauth.creds
+*.creds
