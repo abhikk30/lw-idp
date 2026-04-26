@@ -54,7 +54,11 @@ extraEnv:
         name: gateway-svc-redis
         key: REDIS_URL
   - name: DEX_ISSUER
-    value: "http://dex.dex.svc.cluster.local:5556"
+    # Browser-reachable URL via ingress; CoreDNS rewrite makes it resolve
+    # in-cluster too, so the gateway uses the same issuer for token exchange,
+    # JWKS fetch, and the browser-facing redirect — keeps the `iss` claim
+    # consistent.
+    value: "http://dex.lw-idp.local"
   - name: DEX_AUDIENCE
     value: "lw-idp-gateway"
   - name: DEX_CLIENT_ID
