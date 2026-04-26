@@ -17,6 +17,39 @@ cd "${ROOT}"
 echo "==> helmfile sync (cert-manager, ingress, CNPG, NATS+nack, Dex, Dragonfly, observability)"
 helmfile --file infra/helmfile.yaml sync
 
+echo "==> patching CoreDNS for in-cluster *.lw-idp.local resolution (idempotent)"
+# In-cluster pods (gateway-svc OIDC token exchange + JWKS, identity-svc verifier)
+# need to reach Dex at the same hostname browsers use so the `iss` claim stays
+# consistent. CoreDNS `rewrite` makes dex/portal/grafana .lw-idp.local resolve
+# to the ingress controller's ClusterIP, which then routes to the right
+# backing Service via the Ingress rules we already have.
+#
+# Idempotent: strips any prior marked block AND any unmarked rewrites for
+# *.lw-idp.local (e.g. live-patched during debug) before inserting a fresh
+# block above the kubernetes plugin so rewrites are evaluated first.
+INGRESS_TARGET="ingress-nginx-controller.ingress-nginx.svc.cluster.local"
+# Anchors must match the Corefile's 8-space indent (2 for YAML data + 6
+# inside `.:53 {`) so they don't accidentally strip lines from the
+# `last-applied-configuration` annotation, which embeds the prior Corefile
+# as a single long JSON string and would otherwise corrupt the round-trip.
+kubectl -n kube-system get cm coredns -o yaml \
+  | sed -e '/^        # lw-idp-rewrite-begin$/,/^        # lw-idp-rewrite-end$/d' \
+        -e '/^        rewrite name [a-zA-Z0-9.-]*\.lw-idp\.local /d' \
+  | awk -v t="${INGRESS_TARGET}" '
+      /^        kubernetes cluster.local/ && !done {
+        print "        # lw-idp-rewrite-begin"
+        print "        rewrite name dex.lw-idp.local " t
+        print "        rewrite name portal.lw-idp.local " t
+        print "        rewrite name grafana.lw-idp.local " t
+        print "        # lw-idp-rewrite-end"
+        done=1
+      }
+      { print }
+    ' \
+  | kubectl apply -f -
+kubectl -n kube-system rollout restart deploy/coredns
+kubectl -n kube-system rollout status deploy/coredns --timeout=60s
+
 echo "==> seeding Dex dev secret (idempotent)"
 kubectl create namespace dex --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n dex create secret generic dex-env \
@@ -74,6 +107,20 @@ kubectl -n lw-idp create secret generic notification-svc-nats \
 echo "==> applying Postgres Cluster CR"
 kubectl apply -f infra/cnpg/cluster.yaml
 kubectl -n lwidp-data wait --for=condition=Ready --timeout=300s cluster/pg
+
+echo "==> syncing Postgres role password to match pg-app secret (idempotent)"
+# CNPG normally keeps the `pg-app` Secret and the actual `postgres` role
+# password in sync. A controller restart or helmfile re-sync can regenerate
+# the Secret without rotating the role password, leaving every backend's
+# PG_DSN stale → "password authentication failed" across all four services.
+# Force-set the role password to whatever pg-app currently holds (read at
+# line ~39 above, used to mint per-service-pg secrets) so they always agree.
+PG_PRIMARY=$(kubectl -n lwidp-data get pod \
+  -l cnpg.io/cluster=pg,role=primary \
+  -o jsonpath='{.items[0].metadata.name}')
+kubectl -n lwidp-data exec "${PG_PRIMARY}" -c postgres -- \
+  psql -U postgres -d postgres \
+  -c "ALTER USER postgres WITH PASSWORD '${PG_PW}';"
 
 echo "==> applying per-service databases"
 # Note: databases.postgresql.cnpg.io CRD is absent in this CNPG build (Path B).
