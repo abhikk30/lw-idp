@@ -97,7 +97,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum by (method) (rate(http_request_duration_seconds_count{kubernetes_pod_name=~\"catalog-svc-.*\"}[5m]))",
+          "expr": "sum by (method) (rate(http_request_duration_seconds_count{pod=~\"catalog-svc-.*\"}[5m]))",
           "legendFormat": "{{method}}",
           "range": true,
           "refId": "A"
@@ -131,7 +131,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by (method) (rate(http_request_duration_seconds_count{kubernetes_pod_name=~\"catalog-svc-.*\",status_code=~\"5..\"}[5m]))",
+          "expr": "sum by (method) (rate(http_request_duration_seconds_count{pod=~\"catalog-svc-.*\",status_code=~\"5..\"}[5m]))",
           "legendFormat": "{{method}}",
           "refId": "A"
         }
@@ -164,7 +164,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.95, sum by (le, method) (rate(http_request_duration_seconds_bucket{kubernetes_pod_name=~\"catalog-svc-.*\"}[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le, method) (rate(http_request_duration_seconds_bucket{pod=~\"catalog-svc-.*\"}[5m])))",
           "legendFormat": "{{method}}",
           "refId": "A"
         }
@@ -270,7 +270,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{kubernetes_pod_name=~\"catalog-svc-.*\",method=~\"SearchServices\"}[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{pod=~\"catalog-svc-.*\",method=~\"SearchServices\"}[5m])))",
           "legendFormat": "p95",
           "refId": "A"
         }

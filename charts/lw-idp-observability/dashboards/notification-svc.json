@@ -97,7 +97,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum by (method) (rate(http_request_duration_seconds_count{kubernetes_pod_name=~\"notification-svc-.*\"}[5m]))",
+          "expr": "sum by (method) (rate(http_request_duration_seconds_count{pod=~\"notification-svc-.*\"}[5m]))",
           "legendFormat": "{{method}}",
           "range": true,
           "refId": "A"
@@ -131,7 +131,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by (method) (rate(http_request_duration_seconds_count{kubernetes_pod_name=~\"notification-svc-.*\",status_code=~\"5..\"}[5m]))",
+          "expr": "sum by (method) (rate(http_request_duration_seconds_count{pod=~\"notification-svc-.*\",status_code=~\"5..\"}[5m]))",
           "legendFormat": "{{method}}",
           "refId": "A"
         }
@@ -164,7 +164,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.95, sum by (le, method) (rate(http_request_duration_seconds_bucket{kubernetes_pod_name=~\"notification-svc-.*\"}[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le, method) (rate(http_request_duration_seconds_bucket{pod=~\"notification-svc-.*\"}[5m])))",
           "legendFormat": "{{method}}",
           "refId": "A"
         }
@@ -198,8 +198,8 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by (kubernetes_pod_name) (lwidp_notification_connections)",
-          "legendFormat": "{{kubernetes_pod_name}}",
+          "expr": "sum by (pod) (lwidp_notification_connections)",
+          "legendFormat": "{{pod}}",
           "refId": "A"
         }
       ],
