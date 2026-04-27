@@ -14,6 +14,7 @@ helmfiles:
   - path: helmfile/cnpg.yaml
   - path: helmfile/nats.yaml
   - path: helmfile/dex.yaml
+  - path: helmfile/argocd.yaml
   - path: helmfile/dragonfly.yaml
   - path: helmfile/observability.yaml
 # Note: Postgres Cluster CR, NATS stream CRs, Dragonfly instance CR, and Dex secret
