@@ -34,7 +34,12 @@ config:
         - argocd
     - id: argocd
       name: Argo CD
-      redirectURIs: ["http://argocd.lw-idp.local/auth/dex/callback"]
+      # Argo CD's argocd-server redirects to <configs.cm.url>/auth/callback by
+      # default — there's no `/dex/` path segment in its OIDC integration.
+      # The redirect MUST match exactly or Dex rejects with "invalid redirect
+      # URI". (Verified live during A3 by curl-following the /auth/login
+      # redirect; spec §4.4 listed `/auth/dex/callback` incorrectly.)
+      redirectURIs: ["http://argocd.lw-idp.local/auth/callback"]
       # Same env-var-substitution gotcha as lw-idp-gateway above. The literal
       # MUST match the value cluster-bootstrap.sh writes to the `argocd-dex`
       # Secret in the `argocd` namespace.
