@@ -1,0 +1,62 @@
+# ApplicationSet that dogfoods lw-idp through Argo CD: one Argo CD
+# Application per service, sourced from this monorepo's master branch
+# at charts/<service>/. Applied by scripts/cluster-bootstrap.sh after
+# Argo CD's CRDs are installed.
+#
+# Adding a new service = one entry under generators[0].list.elements
+# (and a corresponding charts/<name>/ Helm chart). P2.1 may switch the
+# generator to a `git` generator that globs charts/*/Chart.yaml so the
+# list is derived rather than literal.
+#
+# syncPolicy.automated.prune is INTENTIONALLY false: destructive prune is
+# only performed by the IDP UI's Hard Sync button (P2.0 spec §3, decision
+# 3). selfHeal: true means manual cluster mutations are reverted to Git
+# state on next reconcile.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: lw-idp-services
+  namespace: argocd
+spec:
+  goTemplate: true
+  generators:
+    - list:
+        elements:
+          - name: gateway-svc
+          - name: identity-svc
+          - name: catalog-svc
+          - name: cluster-svc
+          - name: notification-svc
+          - name: web
+  template:
+    metadata:
+      name: '{{.name}}'
+      labels:
+        app.kubernetes.io/part-of: lw-idp
+      # Notification subscriptions wire each generated Application to the
+      # `lw-idp-gateway` webhook service defined in argocd-notifications-cm
+      # (P2.0 task D1). Triggers fire when Argo CD detects state transitions.
+      annotations:
+        notifications.argoproj.io/subscribe.on-deployed.lw-idp-gateway: ""
+        notifications.argoproj.io/subscribe.on-health-degraded.lw-idp-gateway: ""
+        notifications.argoproj.io/subscribe.on-sync-failed.lw-idp-gateway: ""
+        notifications.argoproj.io/subscribe.on-sync-running.lw-idp-gateway: ""
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/abhikk30/lw-idp.git
+        targetRevision: master
+        path: charts/{{.name}}
+        helm:
+          valueFiles:
+            - values.yaml
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: lw-idp
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ApplyOutOfSyncOnly=true

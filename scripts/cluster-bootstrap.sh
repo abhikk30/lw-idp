@@ -168,5 +168,16 @@ kubectl -n observability wait --for=condition=Available --timeout=300s deploy -l
 kubectl -n observability wait --for=condition=Ready --timeout=300s pod -l app.kubernetes.io/name=loki     || true
 kubectl -n observability wait --for=condition=Ready --timeout=300s pod -l app.kubernetes.io/name=tempo    || true
 
+echo "==> applying Argo CD ApplicationSet for lw-idp services (idempotent)"
+# Wait up to 60s for the ApplicationSet CRD to be available — the chart
+# applies it during helmfile sync but the operator may take a few seconds
+# to register it before a `kubectl apply -f` of the CR itself succeeds.
+for i in $(seq 1 30); do
+  if kubectl get crd applicationsets.argoproj.io >/dev/null 2>&1; then break; fi
+  echo "  waiting for applicationsets CRD... (${i}/30)"
+  sleep 2
+done
+kubectl apply -f infra/argocd/applicationset.yaml
+
 echo "✓ bootstrap complete"
 "${HERE}/cluster-doctor.sh" "${PROFILE}"
