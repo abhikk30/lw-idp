@@ -64,6 +64,7 @@ describe("gateway /auth/login + /auth/callback", () => {
   let gatewayUrl: string;
   let dexServer: Server;
   let dexPort: number;
+  let sessionStore: ReturnType<typeof memorySession>;
   let privateKey: KeyLike;
   let publicJwk: JWK;
 
@@ -137,7 +138,7 @@ describe("gateway /auth/login + /auth/callback", () => {
 
     // 5. Gateway with pre-seeded state (so we can jump straight to /auth/callback)
     const stateStore = memoryState();
-    const sessionStore = memorySession();
+    sessionStore = memorySession();
     await stateStore.put("b3-state", { codeVerifier: "b3-verifier" });
 
     const identityClient = createIdentityClient(identityUrl);
@@ -188,7 +189,7 @@ describe("gateway /auth/login + /auth/callback", () => {
     expect(loc).toMatch(/state=/);
   });
 
-  it("/auth/callback exchanges code, verifies id_token, calls identity-svc.VerifyToken, sets cookie", async () => {
+  it("/auth/callback exchanges code, verifies id_token, calls identity-svc.VerifyToken, sets cookie, persists idToken", async () => {
     const res = await fetch(`${gatewayUrl}/auth/callback?code=code-ok&state=b3-state`, {
       redirect: "manual",
     });
@@ -196,6 +197,15 @@ describe("gateway /auth/login + /auth/callback", () => {
     const setCookie = res.headers.get("set-cookie") ?? "";
     expect(setCookie).toMatch(/^lw-sid=sess_/);
     expect(setCookie).toContain("HttpOnly");
+
+    // P2.0 C1: verify the id_token was persisted onto the session record so
+    // the gateway argocd proxy plugin can forward it as a bearer to Argo CD.
+    const sidMatch = setCookie.match(/lw-sid=(sess_[^;]+)/);
+    expect(sidMatch).not.toBeNull();
+    const sid = sidMatch?.[1] as string;
+    const stored = await sessionStore.get(sid);
+    expect(stored?.idToken).toBeDefined();
+    expect(stored?.idToken).toMatch(/^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+$/);
   });
 
   it("/auth/callback with unknown state returns 400", async () => {

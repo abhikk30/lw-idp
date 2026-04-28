@@ -30,6 +30,23 @@ export interface SessionRecord {
    * to force the next request to re-login. Out of scope for P1.6.
    */
   teams: TeamRef[];
+  /**
+   * The OIDC id_token issued by Dex at login.
+   *
+   * Stored so the gateway can forward it as a bearer to downstream OIDC-trusted
+   * services that share Dex SSO — Argo CD in P2.0 (spec §3.1 invariant 3).
+   * Dex `trustedPeers` lets a single id_token authenticate against multiple
+   * audiences without token-exchange middleware.
+   *
+   * Storage: serialized into the session JSON in Dragonfly. At-rest encryption
+   * is the responsibility of the Dragonfly operator (not app-layer); P1.9 may
+   * add field-level encryption if the threat model demands it.
+   *
+   * Lifetime: bound by the session TTL (default 8h) AND by the id_token's own
+   * `exp` claim (Dex default 24h). The gateway short-circuits proxied calls
+   * with `401 reauth_required` if the token is missing or rejected upstream.
+   */
+  idToken?: string;
   createdAt: string;
 }
 
