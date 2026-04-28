@@ -24,11 +24,23 @@ config:
     - id: lw-idp-gateway
       name: lw-idp Gateway
       redirectURIs: ["http://portal.lw-idp.local/auth/callback"]
-      # Dex 2.41 does NOT env-var-substitute staticClients[].secret (the GitHub
-      # connector does its own runtime env lookup, so $GITHUB_* works there).
-      # The value here MUST match `gateway-svc-dex.DEX_CLIENT_SECRET` in the
-      # lw-idp namespace. Rotated to a SealedSecret in P1.9.
+      # Dex 2.41 does NOT env-var-substitute staticClients[].secret. Hardcoded
+      # to `devnotreal`; P1.8.1 SealedSecret rotation lives in P1.9.
       secret: devnotreal
+      # trustedPeers: tokens issued for this client carry `argocd` in `aud` too,
+      # so the gateway can forward the user's id_token to Argo CD as a bearer
+      # without token-exchange middleware (P2.0 spec §3.1 invariant 3).
+      trustedPeers:
+        - argocd
+    - id: argocd
+      name: Argo CD
+      redirectURIs: ["http://argocd.lw-idp.local/auth/dex/callback"]
+      # Same env-var-substitution gotcha as lw-idp-gateway above. The literal
+      # MUST match the value cluster-bootstrap.sh writes to the `argocd-dex`
+      # Secret in the `argocd` namespace.
+      secret: devnotreal-argocd
+      trustedPeers:
+        - lw-idp-gateway
 
 envFrom:
   - secretRef:

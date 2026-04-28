@@ -41,6 +41,7 @@ kubectl -n kube-system get cm coredns -o yaml \
         print "        rewrite name dex.lw-idp.local " t
         print "        rewrite name portal.lw-idp.local " t
         print "        rewrite name grafana.lw-idp.local " t
+        print "        rewrite name argocd.lw-idp.local " t
         print "        # lw-idp-rewrite-end"
         done=1
       }
@@ -56,13 +57,19 @@ kubectl -n dex create secret generic dex-env \
   --from-literal=GITHUB_CLIENT_ID="${DEX_GITHUB_CLIENT_ID:-devnotreal}" \
   --from-literal=GITHUB_CLIENT_SECRET="${DEX_GITHUB_CLIENT_SECRET:-devnotreal}" \
   --from-literal=GATEWAY_CLIENT_SECRET="${DEX_GATEWAY_CLIENT_SECRET:-devnotreal}" \
+  --from-literal=ARGOCD_CLIENT_SECRET="${DEX_ARGOCD_CLIENT_SECRET:-devnotreal-argocd}" \
   --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n dex rollout restart deploy/dex || true
+
+echo "==> applying Postgres Cluster CR (must precede per-service secrets that depend on pg-app)"
+kubectl apply -f infra/cnpg/cluster.yaml
+kubectl -n lwidp-data wait --for=condition=Ready --timeout=300s cluster/pg
 
 echo "==> seeding per-service secrets (idempotent)"
 kubectl create namespace lw-idp --dry-run=client -o yaml | kubectl apply -f -
 
-# Wait up to 20s for pg-app Secret to exist
+# Wait up to 20s for pg-app Secret to exist (CNPG creates it asynchronously
+# after the Cluster CR's primary becomes Ready)
 for i in $(seq 1 10); do
   if kubectl -n lwidp-data get secret pg-app >/dev/null 2>&1; then break; fi
   echo "  waiting for pg-app secret... (${i}/10)"
@@ -75,6 +82,19 @@ if [[ -z "${PG_PW}" ]]; then
   exit 1
 fi
 
+echo "==> syncing Postgres role password to match pg-app secret (idempotent)"
+# CNPG normally keeps the `pg-app` Secret and the actual `postgres` role
+# password in sync. A controller restart or helmfile re-sync can regenerate
+# the Secret without rotating the role password, leaving every backend's
+# PG_DSN stale → "password authentication failed" across all four services.
+# Force-set the role password to whatever pg-app currently holds.
+PG_PRIMARY=$(kubectl -n lwidp-data get pod \
+  -l cnpg.io/cluster=pg,role=primary \
+  -o jsonpath='{.items[0].metadata.name}')
+kubectl -n lwidp-data exec "${PG_PRIMARY}" -c postgres -- \
+  psql -U postgres -d postgres \
+  -c "ALTER USER postgres WITH PASSWORD '${PG_PW}';"
+
 for svc in identity catalog cluster notification; do
   dsn="postgres://postgres:${PG_PW}@pg-rw.lwidp-data.svc.cluster.local:5432/${svc}"
   kubectl -n lw-idp create secret generic "${svc}-svc-pg" \
@@ -86,6 +106,29 @@ done
 DEX_CLIENT_SECRET=$(kubectl -n dex get secret dex-env -o jsonpath='{.data.GATEWAY_CLIENT_SECRET}' | base64 -d)
 kubectl -n lw-idp create secret generic gateway-svc-dex \
   --from-literal=DEX_CLIENT_SECRET="${DEX_CLIENT_SECRET}" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+# argocd-dex (Dex client secret for Argo CD OIDC code exchange).
+# Argo CD's chart values reference this via `$argocd-dex:clientSecret` — see
+# infra/argocd/values.yaml configs.cm.oidc.config. The literal must match the
+# `argocd` staticClient `secret:` in infra/dex/values.yaml.
+ARGOCD_CLIENT_SECRET=$(kubectl -n dex get secret dex-env -o jsonpath='{.data.ARGOCD_CLIENT_SECRET}' | base64 -d)
+kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n argocd create secret generic argocd-dex \
+  --from-literal=clientSecret="${ARGOCD_CLIENT_SECRET}" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+# gateway-svc-argocd-webhook + argocd-notifications-secret share the same
+# bearer token. argocd-notifications signs outbound webhooks to the gateway
+# with this token in the `X-Lw-Idp-Webhook-Token` header; the gateway
+# constant-time-compares it. Spec §12.1 fallback A — bearer token instead
+# of HMAC, since argocd-notifications has no first-class HMAC function.
+WEBHOOK_TOKEN="${GATEWAY_ARGOCD_WEBHOOK_TOKEN:-devnotreal-webhook}"
+kubectl -n lw-idp create secret generic gateway-svc-argocd-webhook \
+  --from-literal=WEBHOOK_TOKEN="${WEBHOOK_TOKEN}" \
+  --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n argocd create secret generic argocd-notifications-secret \
+  --from-literal=webhook-token="${WEBHOOK_TOKEN}" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 # gateway-svc-redis (Dragonfly connection string)
@@ -103,24 +146,6 @@ kubectl -n lw-idp create secret generic notification-svc-redis \
 kubectl -n lw-idp create secret generic notification-svc-nats \
   --from-literal=NATS_URL="nats://nats.nats-system.svc.cluster.local:4222" \
   --dry-run=client -o yaml | kubectl apply -f -
-
-echo "==> applying Postgres Cluster CR"
-kubectl apply -f infra/cnpg/cluster.yaml
-kubectl -n lwidp-data wait --for=condition=Ready --timeout=300s cluster/pg
-
-echo "==> syncing Postgres role password to match pg-app secret (idempotent)"
-# CNPG normally keeps the `pg-app` Secret and the actual `postgres` role
-# password in sync. A controller restart or helmfile re-sync can regenerate
-# the Secret without rotating the role password, leaving every backend's
-# PG_DSN stale → "password authentication failed" across all four services.
-# Force-set the role password to whatever pg-app currently holds (read at
-# line ~39 above, used to mint per-service-pg secrets) so they always agree.
-PG_PRIMARY=$(kubectl -n lwidp-data get pod \
-  -l cnpg.io/cluster=pg,role=primary \
-  -o jsonpath='{.items[0].metadata.name}')
-kubectl -n lwidp-data exec "${PG_PRIMARY}" -c postgres -- \
-  psql -U postgres -d postgres \
-  -c "ALTER USER postgres WITH PASSWORD '${PG_PW}';"
 
 echo "==> applying per-service databases"
 # Note: databases.postgresql.cnpg.io CRD is absent in this CNPG build (Path B).
