@@ -42,6 +42,14 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(24 * 60 * 60),
+
+  // Argo CD (P2.0). The gateway proxies /api/v1/argocd/* to this URL using the
+  // session's id_token as a bearer (Dex trustedPeers makes the same token
+  // valid for both gateway and argocd audiences — no token-exchange needed).
+  ARGOCD_API_URL: z.string().default("http://argocd-server.argocd.svc:80"),
+  // Webhook receiver token (used by D3). Declared here so the env schema is
+  // stable; unused in C2.
+  ARGOCD_WEBHOOK_TOKEN: z.string().optional(),
 });
 
 export type GatewayEnv = z.infer<typeof EnvSchema>;

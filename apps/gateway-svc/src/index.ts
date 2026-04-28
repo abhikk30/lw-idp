@@ -2,6 +2,7 @@ import { createOidcVerifier, createRedisSessionStore } from "@lw-idp/auth";
 import { createRedis, startServer } from "@lw-idp/service-kit";
 import { createUpstreamClients } from "./clients/index.js";
 import { loadConfig } from "./config.js";
+import { argocdPlugin } from "./http/argocd.js";
 import { authPlugin } from "./http/auth.js";
 import { clustersPlugin } from "./http/clusters.js";
 import { mePlugin } from "./http/me.js";
@@ -85,5 +86,8 @@ await startServer({
     await fastify.register(mePlugin, { identityClient: clients.identity });
     await fastify.register(servicesPlugin, { catalogClient: clients.catalog });
     await fastify.register(clustersPlugin, { clusterClient: clients.cluster });
+    // Argo CD proxy (forwards session.idToken as bearer; Dex trustedPeers
+    // makes the same id_token valid for both gateway and argocd audiences).
+    await fastify.register(argocdPlugin, { argocdApiUrl: env.ARGOCD_API_URL });
   },
 });
