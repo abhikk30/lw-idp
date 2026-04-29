@@ -11,6 +11,20 @@ import {
   type ServicesTableRow,
 } from "../../src/components/services/services-table.client.js";
 
+// ---------------------------------------------------------------------------
+// Helpers for Argo CD application fixtures
+// ---------------------------------------------------------------------------
+
+function makeArgoApp(name: string, sync: string, health: string) {
+  return {
+    metadata: { name },
+    status: {
+      sync: { status: sync, revision: "abc1234" },
+      health: { status: health, message: "" },
+    },
+  };
+}
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push: () => {},
@@ -37,7 +51,11 @@ vi.mock("../../src/lib/api/client.js", () => ({
   },
 }));
 
-const server = setupServer();
+// Default handler: return an empty Argo CD app list so tests that don't care
+// about deploy status don't produce MSW "unhandled request" warnings.
+const server = setupServer(
+  http.get("*/api/v1/argocd/applications", () => HttpResponse.json({ items: [] })),
+);
 beforeAll(() => server.listen());
 afterEach(() => {
   server.resetHandlers();
@@ -150,6 +168,67 @@ describe("ServicesTable", () => {
     await user.selectOptions(select, "library");
     await waitFor(() => {
       expect(lastTypeQuery).toBe("library");
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // E5: DeployStatusPill tests
+  // ---------------------------------------------------------------------------
+
+  it("shows Synced+Healthy pill when Argo CD reports Synced and Healthy", async () => {
+    server.use(
+      http.get("*/api/v1/argocd/applications", () =>
+        HttpResponse.json({
+          items: [makeArgoApp("checkout", "Synced", "Healthy")],
+        }),
+      ),
+    );
+
+    renderTable([baseRow({ id: "svc-1", slug: "checkout", name: "Checkout" })]);
+
+    await waitFor(() => {
+      // Pill text contains both "Synced" and "Healthy"
+      const pill = screen.getByLabelText("Deploy status: Synced and Healthy");
+      expect(pill).toBeInTheDocument();
+      expect(pill).toHaveTextContent("Synced");
+      expect(pill).toHaveTextContent("Healthy");
+    });
+  });
+
+  it("shows '—' for a service not managed by Argo CD (no matching app)", async () => {
+    server.use(
+      http.get("*/api/v1/argocd/applications", () =>
+        // Return an app for a different service — not "unmanaged-svc"
+        HttpResponse.json({
+          items: [makeArgoApp("other-service", "Synced", "Healthy")],
+        }),
+      ),
+    );
+
+    renderTable([baseRow({ id: "svc-2", slug: "unmanaged-svc", name: "Unmanaged" })]);
+
+    await waitFor(() => {
+      // The pill column should render the em-dash fallback
+      const cell = screen.getByText("—");
+      expect(cell).toBeInTheDocument();
+    });
+  });
+
+  it("shows Degraded pill when app health is Degraded", async () => {
+    server.use(
+      http.get("*/api/v1/argocd/applications", () =>
+        HttpResponse.json({
+          items: [makeArgoApp("payments", "Synced", "Degraded")],
+        }),
+      ),
+    );
+
+    renderTable([baseRow({ id: "svc-3", slug: "payments", name: "Payments" })]);
+
+    await waitFor(() => {
+      const pill = screen.getByLabelText("Deploy status: Degraded");
+      expect(pill).toBeInTheDocument();
+      expect(pill).toHaveTextContent("Degraded");
     });
   });
 });
