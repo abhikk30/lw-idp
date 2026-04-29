@@ -26,6 +26,23 @@ describe("invalidationKeysFor", () => {
   it("unknown action returns []", () => {
     expect(invalidationKeysFor("service", "scrambled")).toEqual([]);
   });
+
+  // P2.0 E4: Argo CD application state events from notification-svc
+  it("application.synced returns ['applications']", () => {
+    expect(invalidationKeysFor("application", "synced")).toEqual([["applications"]]);
+  });
+  it("application.degraded returns ['applications']", () => {
+    expect(invalidationKeysFor("application", "degraded")).toEqual([["applications"]]);
+  });
+  it("application.failed returns ['applications']", () => {
+    expect(invalidationKeysFor("application", "failed")).toEqual([["applications"]]);
+  });
+  it("application.running returns ['applications']", () => {
+    expect(invalidationKeysFor("application", "running")).toEqual([["applications"]]);
+  });
+  it("application.<unknown> returns []", () => {
+    expect(invalidationKeysFor("application", "exploded")).toEqual([]);
+  });
 });
 
 describe("humanizeFrame", () => {
@@ -41,5 +58,22 @@ describe("humanizeFrame", () => {
   });
   it("uses entity when no name/slug", () => {
     expect(humanizeFrame("user", "created")).toBe("User user created");
+  });
+
+  // P2.0 E4: deploy state actions get sensible toast text
+  it("application.synced + payload name → 'Application \"name\" synced'", () => {
+    expect(humanizeFrame("application", "synced", { name: "catalog-svc" })).toBe(
+      'Application "catalog-svc" synced',
+    );
+  });
+  it("application.degraded → 'Application \"name\" degraded'", () => {
+    expect(humanizeFrame("application", "degraded", { name: "web" })).toBe(
+      'Application "web" degraded',
+    );
+  });
+  it("application.failed → 'Application \"name\" sync failed'", () => {
+    expect(humanizeFrame("application", "failed", { name: "gateway-svc" })).toBe(
+      'Application "gateway-svc" sync failed',
+    );
   });
 });

@@ -34,6 +34,34 @@ describe("redisSessionStore", () => {
     expect(await store.get("nope")).toBeUndefined();
   });
 
+  it("round-trips an idToken when present (P2.0 Argo CD bearer)", async () => {
+    const rec: SessionRecord = {
+      userId: "u_with_token",
+      email: "tok@b.com",
+      displayName: "Token Holder",
+      teams: [],
+      idToken: "eyJhbGciOi.fakejwt.payload",
+      createdAt: new Date().toISOString(),
+    };
+    await store.set("sess_with_id", rec, { ttlSeconds: 60 });
+    const got = await store.get("sess_with_id");
+    expect(got?.idToken).toBe("eyJhbGciOi.fakejwt.payload");
+  });
+
+  it("treats idToken as optional (legacy P1.x sessions still load)", async () => {
+    const rec: SessionRecord = {
+      userId: "u_no_token",
+      email: "legacy@b.com",
+      displayName: "Legacy",
+      teams: [],
+      createdAt: new Date().toISOString(),
+    };
+    await store.set("sess_no_id", rec, { ttlSeconds: 60 });
+    const got = await store.get("sess_no_id");
+    expect(got?.idToken).toBeUndefined();
+    expect(got?.email).toBe("legacy@b.com");
+  });
+
   it("delete removes the session", async () => {
     await store.set(
       "sess_del",

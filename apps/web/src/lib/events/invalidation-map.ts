@@ -34,6 +34,18 @@ export function invalidationKeysFor(entity: string, action: string): QueryKey[] 
       return [["me"]];
     }
   }
+  if (e === "application") {
+    // P2.0 D4: idp.deploy.application.{synced|degraded|failed|running}
+    // → notification-svc frame shape entity="application", action=<state>.
+    // Invalidate the broad ["applications"] key (services list pill — E5)
+    // and the specific ["applications", name] key (deployments panel — E3)
+    // if a name is on the payload. TanStack Query matches prefixes, so
+    // ["applications"] already invalidates per-app keys, but we keep the
+    // explicit second key for clarity and future-proofing.
+    if (a === "synced" || a === "degraded" || a === "failed" || a === "running") {
+      return [["applications"]];
+    }
+  }
   return [];
 }
 
@@ -69,6 +81,14 @@ export function humanizeFrame(
       return `${capitalize(entity)} ${subject} removed`;
     case "added":
       return `${capitalize(entity)} ${subject} added`;
+    case "synced":
+      return `${capitalize(entity)} ${subject} synced`;
+    case "degraded":
+      return `${capitalize(entity)} ${subject} degraded`;
+    case "failed":
+      return `${capitalize(entity)} ${subject} sync failed`;
+    case "running":
+      return `${capitalize(entity)} ${subject} syncing`;
     default:
       return `${capitalize(entity)} ${action}`;
   }

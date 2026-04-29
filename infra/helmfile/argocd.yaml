@@ -1,0 +1,9 @@
+releases:
+  - name: argocd
+    namespace: argocd
+    chart: argo/argo-cd
+    version: 7.7.23
+    values:
+      - ../argocd/values.yaml
+    # Ordering enforced by helmfiles: list in helmfile.yaml (after dex + ingress-nginx).
+    # Cross-sub-helmfile needs: references are not supported in this setup.

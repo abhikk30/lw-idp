@@ -125,6 +125,11 @@ const authPluginFn: FastifyPluginAsync<AuthPluginOptions> = async (
       if (user.avatarUrl) {
         sessionRecord.avatarUrl = user.avatarUrl;
       }
+      // Persist the id_token for the gateway argocd proxy plugin (P2.0 task
+      // C2): Dex `trustedPeers` makes the same token valid for both
+      // `lw-idp-gateway` and `argocd` audiences, so we forward this as the
+      // bearer to Argo CD's REST API on every proxied call.
+      sessionRecord.idToken = tokens.idToken;
 
       await opts.sessionStore.set(sid, sessionRecord, { ttlSeconds: opts.sessionTtlSeconds });
 

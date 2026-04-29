@@ -1,0 +1,80 @@
+# Argo CD chart values for the dev kind profile.
+# Dev profile uses HTTP only. P1.9 introduces TLS via cert-manager + mkcert.
+
+global:
+  domain: argocd.lw-idp.local
+
+# Use the cluster's existing Dex; do not run Argo CD's bundled Dex.
+dex:
+  enabled: false
+
+configs:
+  params:
+    # Dev profile: serve HTTP from argocd-server, TLS terminates at ingress.
+    # P1.9 swaps this to false + adds cert-manager.
+    server.insecure: true
+
+  cm:
+    # Used by Argo CD for its OIDC redirect URIs and for building absolute
+    # links in notifications (e.g. "Open in Argo CD" links from the IDP).
+    url: http://argocd.lw-idp.local
+
+    # OIDC config — pointing at our Dex broker.
+    # Argo CD reads `oidc.dex.clientSecret` from a separate Secret named
+    # `argocd-dex` (created by scripts/cluster-bootstrap.sh) — avoids
+    # collision with the chart-managed `argocd-secret`.
+    oidc.config: |
+      name: lw-idp Dex
+      issuer: http://dex.lw-idp.local
+      clientID: argocd
+      clientSecret: $argocd-dex:clientSecret
+      requestedScopes: ["openid", "profile", "email", "groups"]
+
+  rbac:
+    # Single role for all authenticated users in P2.0.
+    # Team-scoped policy is deferred to P1.9 / P2.2.
+    policy.default: ""
+    policy.csv: |
+      p, role:lw-idp-user, applications, get, */*, allow
+      p, role:lw-idp-user, applications, sync, */*, allow
+      p, role:lw-idp-user, applications, action/*, */*, allow
+      g, "lw-idp:authenticated", role:lw-idp-user
+
+server:
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: "false"
+      # The web UI uses gRPC-Web internally; keep proxy buffering off
+      # so streamed responses (logs, watch endpoints) don't get held back.
+      nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    hostname: argocd.lw-idp.local
+    paths:
+      - /
+    pathType: Prefix
+    https: false  # TLS lands in P1.9
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+# Enable applicationSet + notifications controllers (used in B1, D1).
+applicationSet:
+  enabled: true
+
+notifications:
+  enabled: true
+
+# Prometheus scraping for metrics dashboard (used in F1).
+controller:
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+repoServer:
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true

@@ -82,6 +82,16 @@ extraEnv:
     value: "60000"
   - name: IDEMPOTENCY_TTL_SECONDS
     value: "86400"
+  # Argo CD proxy (P2.0). In-cluster DNS — no ingress hop, no TLS overhead.
+  - name: ARGOCD_API_URL
+    value: "http://argocd-server.argocd.svc:80"
+  # Webhook HMAC token (used by D3 webhook receiver; mounted ahead of D3 so
+  # the Secret/env wiring is in place when that plugin lands).
+  - name: ARGOCD_WEBHOOK_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: gateway-svc-argocd-webhook
+        key: ARGOCD_WEBHOOK_TOKEN
 
 monitoring:
   enabled: true

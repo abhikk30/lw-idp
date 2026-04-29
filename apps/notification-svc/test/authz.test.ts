@@ -163,4 +163,42 @@ describe("canUserSeeEvent", () => {
     });
     expect(canUserSeeEvent(regular, env)).toBe(true);
   });
+
+  // P2.0 D4 — Argo CD application state events visible to any authed session
+  it("allows deploy.application.synced for any authenticated user", () => {
+    const env = createEnvelope({
+      type: "idp.deploy.application.synced",
+      source: "gateway-svc",
+      data: {
+        app: "catalog-svc",
+        revision: "abc1234",
+        syncStatus: "Synced",
+        healthStatus: "Healthy",
+        at: "2026-04-29T05:30:00.000Z",
+      },
+    });
+    expect(canUserSeeEvent(regular, env)).toBe(true);
+    expect(canUserSeeEvent(admin, env)).toBe(true);
+  });
+
+  it("allows deploy.application.degraded / failed / running for any authenticated user", () => {
+    for (const t of [
+      "idp.deploy.application.degraded",
+      "idp.deploy.application.failed",
+      "idp.deploy.application.running",
+    ] as const) {
+      const env = createEnvelope({
+        type: t,
+        source: "gateway-svc",
+        data: {
+          app: "web",
+          revision: "deadbeef",
+          syncStatus: "OutOfSync",
+          healthStatus: "Degraded",
+          at: "2026-04-29T05:30:00.000Z",
+        },
+      });
+      expect(canUserSeeEvent(regular, env)).toBe(true);
+    }
+  });
 });

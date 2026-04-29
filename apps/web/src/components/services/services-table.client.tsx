@@ -1,5 +1,6 @@
 "use client";
 
+import type { ArgoApplication } from "@lw-idp/contracts";
 import { Badge } from "@lw-idp/ui/components/badge";
 import { Button } from "@lw-idp/ui/components/button";
 import { Input } from "@lw-idp/ui/components/input";
@@ -16,6 +17,7 @@ import { type ColumnDef, flexRender, getCoreRowModel, useReactTable } from "@tan
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useState } from "react";
+import { createArgoCdAdapter } from "../../lib/adapters/argocd.js";
 import { apiClient } from "../../lib/api/client.js";
 
 export interface ServicesTableRow {
@@ -31,52 +33,121 @@ export interface ServicesTableRow {
 const SERVICE_TYPES = ["", "service", "library", "website", "ml", "job"] as const;
 const LIFECYCLES = ["", "experimental", "production", "deprecated"] as const;
 
-const columns: ColumnDef<ServicesTableRow>[] = [
-  {
-    accessorKey: "slug",
-    header: "Slug",
-    cell: ({ row }) => (
-      <Link
-        href={`/services/${row.original.id}`}
-        className="text-primary font-mono text-sm hover:underline"
+/**
+ * Compact deploy status pill for the services list. Mirrors the color tokens
+ * used in `deployments-panel.client.tsx` (E3) for visual consistency.
+ */
+function DeployStatusPill({ app }: { app: ArgoApplication | undefined }): ReactNode {
+  if (!app) {
+    return <span className="text-muted-foreground">—</span>;
+  }
+
+  const { sync, health } = app;
+  const isSyncedHealthy = sync.status === "Synced" && health.status === "Healthy";
+
+  if (isSyncedHealthy) {
+    return (
+      <span
+        className="inline-flex items-center gap-1 rounded-full border border-transparent bg-green-500/10 px-2 py-0.5 text-xs font-medium text-green-700 dark:text-green-400"
+        aria-label="Deploy status: Synced and Healthy"
+        data-testid="deploy-status-pill"
       >
-        {row.original.slug}
-      </Link>
-    ),
-  },
-  {
-    accessorKey: "name",
-    header: "Name",
-    cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
-  },
-  {
-    accessorKey: "type",
-    header: "Type",
-    cell: ({ row }) => <Badge variant="secondary">{row.original.type}</Badge>,
-  },
-  {
-    accessorKey: "lifecycle",
-    header: "Lifecycle",
-    cell: ({ row }) => (
-      <Badge variant={row.original.lifecycle === "production" ? "default" : "outline"}>
-        {row.original.lifecycle}
-      </Badge>
-    ),
-  },
-  {
-    accessorKey: "updatedAt",
-    header: "Updated",
-    cell: ({ row }) => {
-      const ts = row.original.updatedAt;
-      if (!ts) {
-        return <span className="text-muted-foreground">—</span>;
-      }
-      return (
-        <span className="text-muted-foreground text-sm">{new Date(ts).toLocaleDateString()}</span>
-      );
+        Synced ✓ Healthy ●
+      </span>
+    );
+  }
+
+  if (sync.status === "OutOfSync") {
+    return (
+      <span
+        className="inline-flex items-center gap-1 rounded-full border border-transparent bg-yellow-500/10 px-2 py-0.5 text-xs font-medium text-yellow-700 dark:text-yellow-400"
+        aria-label="Deploy status: OutOfSync"
+        data-testid="deploy-status-pill"
+      >
+        OutOfSync
+      </span>
+    );
+  }
+
+  if (health.status === "Degraded") {
+    return (
+      <span
+        className="inline-flex items-center gap-1 rounded-full border border-transparent bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive"
+        aria-label="Deploy status: Degraded"
+        data-testid="deploy-status-pill"
+      >
+        Degraded
+      </span>
+    );
+  }
+
+  // Fallback: show sync + health text for any other combo (e.g. Progressing)
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium text-muted-foreground"
+      aria-label={`Deploy status: ${sync.status} ${health.status}`}
+      data-testid="deploy-status-pill"
+    >
+      {sync.status} {health.status}
+    </span>
+  );
+}
+
+type AppsByName = Record<string, ArgoApplication>;
+
+function buildColumns(appsByName: AppsByName | undefined): ColumnDef<ServicesTableRow>[] {
+  return [
+    {
+      accessorKey: "slug",
+      header: "Slug",
+      cell: ({ row }) => (
+        <Link
+          href={`/services/${row.original.id}`}
+          className="text-primary font-mono text-sm hover:underline"
+        >
+          {row.original.slug}
+        </Link>
+      ),
     },
-  },
-];
+    {
+      accessorKey: "name",
+      header: "Name",
+      cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
+    },
+    {
+      accessorKey: "type",
+      header: "Type",
+      cell: ({ row }) => <Badge variant="secondary">{row.original.type}</Badge>,
+    },
+    {
+      accessorKey: "lifecycle",
+      header: "Lifecycle",
+      cell: ({ row }) => (
+        <Badge variant={row.original.lifecycle === "production" ? "default" : "outline"}>
+          {row.original.lifecycle}
+        </Badge>
+      ),
+    },
+    {
+      id: "deploy",
+      header: "Deploy",
+      cell: ({ row }) => <DeployStatusPill app={appsByName?.[row.original.slug]} />,
+    },
+    {
+      accessorKey: "updatedAt",
+      header: "Updated",
+      cell: ({ row }) => {
+        const ts = row.original.updatedAt;
+        if (!ts) {
+          return <span className="text-muted-foreground">—</span>;
+        }
+        return (
+          <span className="text-muted-foreground text-sm">{new Date(ts).toLocaleDateString()}</span>
+        );
+      },
+    },
+  ];
+}
 
 interface ServicesTableProps {
   /** Initial data from RSC fetch — passed to TanStack Query as initialData. */
@@ -129,7 +200,20 @@ export function ServicesTable({ initialData }: ServicesTableProps): ReactNode {
     staleTime: 30_000,
   });
 
+  // Batched Argo CD applications query — indexed by name (== service slug).
+  // Invalidated automatically by the WS-driven invalidation map (E4) on
+  // `idp.deploy.application.*` events, keeping pills live without polling.
+  const { data: appsByName } = useQuery({
+    queryKey: ["applications"],
+    queryFn: async () => {
+      const apps = await createArgoCdAdapter().listApplications();
+      return Object.fromEntries(apps.map((a) => [a.name, a])) as AppsByName;
+    },
+    staleTime: 30_000,
+  });
+
   const rows = data ?? [];
+  const columns = buildColumns(appsByName);
 
   const table = useReactTable({
     data: rows,

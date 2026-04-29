@@ -1,0 +1,146 @@
+# argocd-notifications-cm patch — P2.0 task D1
+#
+# This manifest is applied via `kubectl apply --server-side --force-conflicts` so
+# it *layers* our entries on top of the chart-managed ConfigMap without clobbering
+# the `context.argocdUrl` entry that the Helm release owns.
+#
+# === Bearer-token auth (spec §12.1 fallback A) ===
+# argocd-notifications has no first-class HMAC function. Instead we share a
+# bearer token via a Kubernetes Secret:
+#
+#   - argocd/argocd-notifications-secret   key: webhook-token   (notifications reads it)
+#   - lw-idp/gateway-svc-argocd-webhook    key: WEBHOOK_TOKEN   (gateway reads it; D3)
+#
+# Both secrets are seeded by scripts/cluster-bootstrap.sh from the same env var
+# GATEWAY_ARGOCD_WEBHOOK_TOKEN (default: devnotreal-webhook).
+# The notifications controller interpolates `$webhook-token` in header values
+# using the Secret's key name (the controller strips the `webhook-` prefix convention
+# and resolves it from argocd-notifications-secret automatically when the key is
+# referenced as `$<key-name>`).
+#
+# === .context.trigger — why we use 4 separate templates ===
+# In argocd-notifications engine v2.x, `.context` in Go templates refers only to
+# the static key-value pairs defined in the `context:` stanza of THIS ConfigMap —
+# NOT to runtime trigger metadata. There is no `.context.trigger` or
+# `.context.timestamp` injected by the engine at dispatch time. (Confirmed by
+# inspecting the running v2.13.4 controller logs and the Helm chart values comment:
+# "Argo CD dashboard url; used in place of {{.context.argocdUrl}} in templates".)
+#
+# To surface the trigger name in the webhook payload we fall back to the safe
+# approach: 4 templates (app-event-on-deployed, app-event-on-health-degraded,
+# app-event-on-sync-failed, app-event-on-sync-running), each hard-coding its
+# "trigger" field. Each trigger's `send:` list references its own template.
+# The gateway (D3) reads the "trigger" field from the JSON body to route events
+# onto the correct NATS subject (idp.deploy.<app>.<trigger>).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-notifications-cm
+  namespace: argocd
+data:
+  # ── Webhook service ──────────────────────────────────────────────────────────
+  # Points at the gateway's webhook ingestion endpoint (D3). The bearer token is
+  # read from the `argocd-notifications-secret` Secret key `webhook-token` and
+  # interpolated here as `$webhook-token` by the notifications controller at send
+  # time. The gateway constant-time-compares the value against WEBHOOK_TOKEN from
+  # `gateway-svc-argocd-webhook` (spec §12.1 fallback A).
+  service.webhook.lw-idp-gateway: |
+    url: http://gateway-svc.lw-idp.svc.cluster.local:4002/api/v1/webhooks/argocd
+    headers:
+      - name: X-Lw-Idp-Webhook-Token
+        value: $webhook-token
+      - name: Content-Type
+        value: application/json
+
+  # ── Notification templates ───────────────────────────────────────────────────
+  # One template per trigger (see §4.3 and the ".context.trigger" comment above).
+  # The "trigger" field is hard-coded per template so the gateway can route events
+  # without needing the notification framework to inject a runtime trigger name.
+
+  template.app-event-on-deployed: |
+    webhook:
+      lw-idp-gateway:
+        method: POST
+        body: |
+          {
+            "trigger": "on-deployed",
+            "app": "{{ .app.metadata.name }}",
+            "revision": "{{ .app.status.sync.revision }}",
+            "syncStatus": "{{ .app.status.sync.status }}",
+            "healthStatus": "{{ .app.status.health.status }}",
+            "operationPhase": "{{ if .app.status.operationState }}{{ .app.status.operationState.phase }}{{ end }}"
+          }
+
+  template.app-event-on-health-degraded: |
+    webhook:
+      lw-idp-gateway:
+        method: POST
+        body: |
+          {
+            "trigger": "on-health-degraded",
+            "app": "{{ .app.metadata.name }}",
+            "revision": "{{ .app.status.sync.revision }}",
+            "syncStatus": "{{ .app.status.sync.status }}",
+            "healthStatus": "{{ .app.status.health.status }}",
+            "operationPhase": "{{ if .app.status.operationState }}{{ .app.status.operationState.phase }}{{ end }}"
+          }
+
+  template.app-event-on-sync-failed: |
+    webhook:
+      lw-idp-gateway:
+        method: POST
+        body: |
+          {
+            "trigger": "on-sync-failed",
+            "app": "{{ .app.metadata.name }}",
+            "revision": "{{ .app.status.sync.revision }}",
+            "syncStatus": "{{ .app.status.sync.status }}",
+            "healthStatus": "{{ .app.status.health.status }}",
+            "operationPhase": "{{ if .app.status.operationState }}{{ .app.status.operationState.phase }}{{ end }}"
+          }
+
+  template.app-event-on-sync-running: |
+    webhook:
+      lw-idp-gateway:
+        method: POST
+        body: |
+          {
+            "trigger": "on-sync-running",
+            "app": "{{ .app.metadata.name }}",
+            "revision": "{{ .app.status.sync.revision }}",
+            "syncStatus": "{{ .app.status.sync.status }}",
+            "healthStatus": "{{ .app.status.health.status }}",
+            "operationPhase": "{{ if .app.status.operationState }}{{ .app.status.operationState.phase }}{{ end }}"
+          }
+
+  # ── Triggers ─────────────────────────────────────────────────────────────────
+  # when: expressions use the cel-go subset supported by argocd-notifications.
+  # `app.status.operationState.phase in [...]` is the canonical upstream form.
+  # Each trigger sends to its own template (see above) so the "trigger" field in
+  # the webhook body is always accurate.
+  #
+  # Consumer-side binding: every Application generated by the ApplicationSet
+  # (infra/argocd/applicationset.yaml) carries:
+  #   notifications.argoproj.io/subscribe.<trigger>.lw-idp-gateway: ""
+  # That annotation opts the Application into all four triggers on the
+  # `lw-idp-gateway` webhook service defined above.
+
+  trigger.on-deployed: |
+    - description: Application synced and healthy
+      send: [app-event-on-deployed]
+      when: app.status.operationState.phase in ['Succeeded'] and app.status.health.status == 'Healthy'
+
+  trigger.on-health-degraded: |
+    - description: Application has degraded
+      send: [app-event-on-health-degraded]
+      when: app.status.health.status == 'Degraded'
+
+  trigger.on-sync-failed: |
+    - description: Application sync has failed
+      send: [app-event-on-sync-failed]
+      when: app.status.operationState.phase in ['Error', 'Failed']
+
+  trigger.on-sync-running: |
+    - description: Application is being synced
+      send: [app-event-on-sync-running]
+      when: app.status.operationState.phase in ['Running']

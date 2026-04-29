@@ -13,6 +13,13 @@ export const subjects = {
   clusterRegistered: "idp.cluster.cluster.registered",
   clusterUpdated: "idp.cluster.cluster.updated",
   clusterDeregistered: "idp.cluster.cluster.deregistered",
+  // deploy (Argo CD application state — produced by argocd-notifications via
+  // gateway webhook receiver; published from gateway, fanned out to WS by
+  // notification-svc, P2.0 spec §4.7)
+  deployApplicationSynced: "idp.deploy.application.synced",
+  deployApplicationDegraded: "idp.deploy.application.degraded",
+  deployApplicationFailed: "idp.deploy.application.failed",
+  deployApplicationRunning: "idp.deploy.application.running",
 } as const;
 
 export type Subject = (typeof subjects)[keyof typeof subjects];
