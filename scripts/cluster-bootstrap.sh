@@ -55,14 +55,47 @@ kubectl -n kube-system rollout status deploy/coredns --timeout=60s
 
 echo "==> seeding Dex dev secret (idempotent)"
 kubectl create namespace dex --dry-run=client -o yaml | kubectl apply -f -
+
+# Precedence for each value:
+#   1. DEX_*_CLIENT_{ID,SECRET} env var if set (explicit override)
+#   2. existing Secret value if it's not the "devnotreal" placeholder
+#      (preserves real GitHub OAuth creds across re-runs — see runbook)
+#   3. "devnotreal" placeholder fallback
+# Without rule 2, every re-run blows real creds back to placeholder, which
+# would break login until the user re-applies them. Bit them once, fixing.
+_existing() {
+  kubectl -n dex get secret dex-env -o jsonpath="{.data.$1}" 2>/dev/null | base64 -d || true
+}
+_resolve() {  # _resolve <var-name> <env-var> <default>
+  local existing
+  existing=$(_existing "$1")
+  if [[ -n "${!2:-}" ]]; then
+    printf '%s' "${!2}"
+  elif [[ -n "${existing}" && "${existing}" != "devnotreal"* ]]; then
+    printf '%s' "${existing}"
+  else
+    printf '%s' "$3"
+  fi
+}
+
+_PREV_GH_ID=$(_existing GITHUB_CLIENT_ID)
+_PREV_GH_SECRET=$(_existing GITHUB_CLIENT_SECRET)
+DEX_GH_ID=$(_resolve GITHUB_CLIENT_ID DEX_GITHUB_CLIENT_ID "devnotreal")
+DEX_GH_SECRET=$(_resolve GITHUB_CLIENT_SECRET DEX_GITHUB_CLIENT_SECRET "devnotreal")
+
 kubectl -n dex create secret generic dex-env \
-  --from-literal=GITHUB_CLIENT_ID="${DEX_GITHUB_CLIENT_ID:-devnotreal}" \
-  --from-literal=GITHUB_CLIENT_SECRET="${DEX_GITHUB_CLIENT_SECRET:-devnotreal}" \
+  --from-literal=GITHUB_CLIENT_ID="${DEX_GH_ID}" \
+  --from-literal=GITHUB_CLIENT_SECRET="${DEX_GH_SECRET}" \
   --from-literal=GATEWAY_CLIENT_SECRET="${DEX_GATEWAY_CLIENT_SECRET:-devnotreal}" \
   --from-literal=ARGOCD_CLIENT_SECRET="${DEX_ARGOCD_CLIENT_SECRET:-devnotreal-argocd}" \
   --from-literal=JENKINS_CLIENT_SECRET="${DEX_JENKINS_CLIENT_SECRET:-devnotreal-jenkins}" \
   --dry-run=client -o yaml | kubectl apply -f -
-kubectl -n dex rollout restart deploy/dex || true
+
+# Only roll Dex when the GitHub creds actually changed — repeated no-op
+# bootstraps shouldn't log users out.
+if [[ "${DEX_GH_ID}" != "${_PREV_GH_ID}" || "${DEX_GH_SECRET}" != "${_PREV_GH_SECRET}" ]]; then
+  kubectl -n dex rollout restart deploy/dex || true
+fi
 
 echo "==> applying Postgres Cluster CR (must precede per-service secrets that depend on pg-app)"
 kubectl apply -f infra/cnpg/cluster.yaml
