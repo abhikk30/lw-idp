@@ -15,6 +15,7 @@ tags:
   - name: services
   - name: clusters
   - name: teams
+  - name: observability
 
 paths:
   /me:
@@ -217,6 +218,136 @@ paths:
               schema: { $ref: "#/components/schemas/TeamList" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
+  /observability/logs:
+    get:
+      tags: [observability]
+      summary: Tail recent logs for a service
+      security:
+        - sessionCookie: []
+      parameters:
+        - in: query
+          name: service
+          required: true
+          schema: { type: string }
+          description: Service slug
+        - in: query
+          name: since
+          schema: { type: string, default: "1h" }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 200, maximum: 1000 }
+        - in: query
+          name: trace_id
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LogsResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /observability/traces:
+    get:
+      tags: [observability]
+      summary: List recent traces for a service
+      security:
+        - sessionCookie: []
+      parameters:
+        - in: query
+          name: service
+          required: true
+          schema: { type: string }
+        - in: query
+          name: since
+          schema: { type: string, default: "1h" }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 10, maximum: 100 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TracesResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /observability/traces/{traceId}:
+    get:
+      tags: [observability]
+      summary: Get a single trace's spans
+      security:
+        - sessionCookie: []
+      parameters:
+        - in: path
+          name: traceId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TraceDetailResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /observability/metrics:
+    get:
+      tags: [observability]
+      summary: Sparkline data for a service metric
+      security:
+        - sessionCookie: []
+      parameters:
+        - in: query
+          name: service
+          required: true
+          schema: { type: string }
+        - in: query
+          name: panel
+          required: true
+          schema: { type: string, enum: [req_rate, error_rate, p95_latency] }
+        - in: query
+          name: since
+          schema: { type: string, default: "1h" }
+        - in: query
+          name: step
+          schema: { type: string, default: "15s" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MetricsResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /observability/pods:
+    get:
+      tags: [observability]
+      summary: List live pods for a service
+      security:
+        - sessionCookie: []
+      parameters:
+        - in: query
+          name: service
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PodsResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
 components:
   securitySchemes:
     sessionCookie:
@@ -401,3 +532,94 @@ components:
           type: array
           items: { $ref: "#/components/schemas/Cluster" }
         nextCursor: { type: string }
+
+    LokiLine:
+      type: object
+      required: [ts, raw]
+      properties:
+        ts:        { type: string, format: date-time }
+        raw:       { type: string }
+        level:     { type: string, nullable: true }
+        msg:       { type: string, nullable: true }
+        trace_id:  { type: string, nullable: true }
+        span_id:   { type: string, nullable: true }
+        pod:       { type: string, nullable: true }
+
+    LogsResponse:
+      type: object
+      required: [lines, truncated]
+      properties:
+        lines:     { type: array, items: { $ref: "#/components/schemas/LokiLine" } }
+        truncated: { type: boolean }
+
+    TraceSummary:
+      type: object
+      required: [trace_id, root_service, root_operation, started_at, duration_ms, span_count, status]
+      properties:
+        trace_id:        { type: string }
+        root_service:    { type: string }
+        root_operation:  { type: string }
+        started_at:      { type: string, format: date-time }
+        duration_ms:     { type: number }
+        span_count:      { type: integer }
+        status:          { type: string, enum: [ok, error] }
+
+    TracesResponse:
+      type: object
+      required: [traces]
+      properties:
+        traces:    { type: array, items: { $ref: "#/components/schemas/TraceSummary" } }
+
+    SpanNode:
+      type: object
+      required: [span_id, parent_id, service, name, started_at, duration_ms, status, attributes]
+      properties:
+        span_id:        { type: string }
+        parent_id:      { type: string, nullable: true }
+        service:        { type: string }
+        name:           { type: string }
+        started_at:     { type: string, format: date-time }
+        duration_ms:    { type: number }
+        status:         { type: string, enum: [ok, error] }
+        attributes:
+          type: object
+          additionalProperties: true
+
+    TraceDetailResponse:
+      type: object
+      required: [trace_id, spans]
+      properties:
+        trace_id: { type: string }
+        spans:    { type: array, items: { $ref: "#/components/schemas/SpanNode" } }
+
+    MetricsPoint:
+      type: object
+      required: [ts, value]
+      properties:
+        ts:    { type: string, format: date-time }
+        value: { type: number }
+
+    MetricsResponse:
+      type: object
+      required: [panel, unit, points]
+      properties:
+        panel:  { type: string }
+        unit:   { type: string }
+        points: { type: array, items: { $ref: "#/components/schemas/MetricsPoint" } }
+
+    Pod:
+      type: object
+      required: [name, phase, ready, restart_count]
+      properties:
+        name:          { type: string }
+        phase:         { type: string }
+        ready:         { type: boolean }
+        started_at:    { type: string, nullable: true }
+        restart_count: { type: integer }
+        node:          { type: string, nullable: true }
+
+    PodsResponse:
+      type: object
+      required: [pods]
+      properties:
+        pods: { type: array, items: { $ref: "#/components/schemas/Pod" } }
