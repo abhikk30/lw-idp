@@ -1,6 +1,7 @@
 import { createLokiClient, createPromClient, createTempoClient } from "@lw-idp/service-kit";
 import type { FastifyPluginAsync } from "fastify";
 import fp from "fastify-plugin";
+import type { K8sClient } from "../clients/k8s.js";
 
 export interface ObservabilityPluginOptions {
   lokiUrl: string;
@@ -13,6 +14,12 @@ export interface ObservabilityPluginOptions {
    * catalog row, so the App CR is the source of truth.
    */
   argocdApiUrl: string;
+  /**
+   * In-cluster Kubernetes API client. Used by /api/v1/observability/pods to
+   * list pods in the resolved targetNamespace (filtered by
+   * `app.kubernetes.io/instance=<slug>` to scope to the service's pods).
+   */
+  k8sClient: K8sClient;
 }
 
 const PROMQL: Record<string, (ns: string) => string> = {
@@ -181,6 +188,36 @@ const obsPluginFn: FastifyPluginAsync<ObservabilityPluginOptions> = async (fasti
       return reply
         .code(502)
         .send({ code: "prom_unreachable", message: "metrics backend unreachable" });
+    }
+  });
+
+  fastify.get("/api/v1/observability/pods", async (req, reply) => {
+    if (!req.session) {
+      return reply.code(401).send({ code: "unauthorized", message: "auth required" });
+    }
+    const q = req.query as Record<string, string | undefined>;
+    const slug = q.service;
+    if (!slug) {
+      return reply.code(400).send({ code: "bad_request", message: "service required" });
+    }
+
+    let ns: string | null;
+    try {
+      ns = await resolveNamespace(slug, req.session.idToken ?? "");
+    } catch (err) {
+      fastify.log.error({ err }, "argocd app lookup failed");
+      return reply.code(502).send({ code: "argocd_unreachable", message: "argocd unreachable" });
+    }
+    if (ns === null) {
+      return reply.code(404).send({ code: "not_found", message: "service not found in argocd" });
+    }
+
+    try {
+      const pods = await opts.k8sClient.listPods(ns, `app.kubernetes.io/instance=${slug}`);
+      return reply.send({ pods });
+    } catch (err) {
+      fastify.log.error({ err }, "k8s list pods failed");
+      return reply.code(502).send({ code: "k8s_unreachable", message: "kube api unreachable" });
     }
   });
 };

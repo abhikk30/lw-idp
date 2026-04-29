@@ -2,6 +2,7 @@ import { createOidcVerifier, createRedisSessionStore } from "@lw-idp/auth";
 import { createRedis, startServer } from "@lw-idp/service-kit";
 import { connect as natsConnect } from "nats";
 import { createUpstreamClients } from "./clients/index.js";
+import { createK8sClient } from "./clients/k8s.js";
 import { loadConfig } from "./config.js";
 import { argocdPlugin } from "./http/argocd.js";
 import { authPlugin } from "./http/auth.js";
@@ -45,6 +46,10 @@ const clients = createUpstreamClients({
   catalogUrl: env.CATALOG_SVC_URL,
   clusterUrl: env.CLUSTER_SVC_URL,
 });
+
+// In-cluster Kubernetes API client for /api/v1/observability/pods. Uses the
+// projected ServiceAccount token + cluster CA from the kubelet-mounted secret.
+const k8sClient = createK8sClient();
 
 await startServer({
   name: "gateway-svc",
@@ -135,6 +140,7 @@ await startServer({
       tempoUrl: env.TEMPO_URL,
       promUrl: env.PROM_URL,
       argocdApiUrl: env.ARGOCD_API_URL,
+      k8sClient,
     });
     // Webhook receiver: POST /api/v1/webhooks/argocd — argocd-notifications-controller
     // posts here; we verify the bearer token and publish a CloudEvent to NATS.

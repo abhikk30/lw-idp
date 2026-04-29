@@ -3,8 +3,29 @@ import type { AddressInfo } from "node:net";
 import type { SessionRecord, SessionStore, SessionStoreSetOptions } from "@lw-idp/auth";
 import { type LwIdpServer, buildServer } from "@lw-idp/service-kit";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { K8sClient, K8sPod } from "../../src/clients/k8s.js";
 import { observabilityPlugin } from "../../src/http/observability.js";
 import { sessionPlugin } from "../../src/middleware/session.js";
+
+interface FakeK8s extends K8sClient {
+  calls: { namespace: string; labelSelector: string | undefined }[];
+  setListPods(fn: (ns: string, sel?: string) => Promise<K8sPod[]>): void;
+}
+
+function fakeK8sClient(): FakeK8s {
+  const calls: { namespace: string; labelSelector: string | undefined }[] = [];
+  let listFn: (ns: string, sel?: string) => Promise<K8sPod[]> = async () => [];
+  return {
+    calls,
+    setListPods(fn) {
+      listFn = fn;
+    },
+    async listPods(namespace, labelSelector) {
+      calls.push({ namespace, labelSelector });
+      return listFn(namespace, labelSelector);
+    },
+  };
+}
 
 function memorySession(): SessionStore {
   const m = new Map<string, SessionRecord>();
@@ -67,12 +88,14 @@ describe("gateway /api/v1/observability/*", () => {
   let loki: StubServer;
   let tempo: StubServer;
   let prom: StubServer;
+  let k8s: FakeK8s;
 
   beforeAll(async () => {
     argo = await startStub();
     loki = await startStub();
     tempo = await startStub();
     prom = await startStub();
+    k8s = fakeK8sClient();
 
     sessionStore = memorySession();
     await sessionStore.set(
@@ -98,6 +121,7 @@ describe("gateway /api/v1/observability/*", () => {
           tempoUrl: tempo.baseUrl,
           promUrl: prom.baseUrl,
           argocdApiUrl: argo.baseUrl,
+          k8sClient: k8s,
         });
       },
     });
@@ -416,6 +440,82 @@ describe("gateway /api/v1/observability/*", () => {
       expect(res.status).toBe(502);
       const body = (await res.json()) as { code: string };
       expect(body.code).toBe("prom_unreachable");
+    });
+  });
+
+  // ---- Pods ----
+
+  describe("GET /api/v1/observability/pods", () => {
+    it("returns 401 without a session", async () => {
+      const res = await fetch(`${gatewayUrl}/api/v1/observability/pods?service=foo`);
+      expect(res.status).toBe(401);
+    });
+
+    it("returns 400 when service param is missing", async () => {
+      const res = await fetch(`${gatewayUrl}/api/v1/observability/pods`, {
+        headers: { cookie: "lw-sid=sess_obs_ok" },
+      });
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { code: string };
+      expect(body.code).toBe("bad_request");
+    });
+
+    it("returns 404 when Argo CD App does not exist", async () => {
+      argo.setHandler(() => ({ status: 404, body: {} }));
+      const res = await fetch(`${gatewayUrl}/api/v1/observability/pods?service=ghost`, {
+        headers: { cookie: "lw-sid=sess_obs_ok" },
+      });
+      expect(res.status).toBe(404);
+      const body = (await res.json()) as { code: string };
+      expect(body.code).toBe("not_found");
+    });
+
+    it("returns 200 and lists pods using the resolved namespace + label selector", async () => {
+      argo.setHandler(() => ({
+        status: 200,
+        body: { spec: { destination: { namespace: "sample-nginx" } } },
+      }));
+      const fakePods: K8sPod[] = [
+        {
+          name: "sample-nginx-abc",
+          phase: "Running",
+          ready: true,
+          started_at: "2026-04-29T00:00:00Z",
+          restart_count: 0,
+          node: "kind-worker",
+        },
+      ];
+      k8s.setListPods(async () => fakePods);
+      const before = k8s.calls.length;
+
+      const res = await fetch(`${gatewayUrl}/api/v1/observability/pods?service=sample-nginx`, {
+        headers: { cookie: "lw-sid=sess_obs_ok" },
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { pods: K8sPod[] };
+      expect(body.pods).toHaveLength(1);
+      expect(body.pods[0]?.name).toBe("sample-nginx-abc");
+
+      const call = k8s.calls[before];
+      expect(call).toBeDefined();
+      expect(call?.namespace).toBe("sample-nginx");
+      expect(call?.labelSelector).toBe("app.kubernetes.io/instance=sample-nginx");
+    });
+
+    it("returns 502 when the k8s client throws", async () => {
+      argo.setHandler(() => ({
+        status: 200,
+        body: { spec: { destination: { namespace: "sample-nginx" } } },
+      }));
+      k8s.setListPods(async () => {
+        throw new Error("boom");
+      });
+      const res = await fetch(`${gatewayUrl}/api/v1/observability/pods?service=sample-nginx`, {
+        headers: { cookie: "lw-sid=sess_obs_ok" },
+      });
+      expect(res.status).toBe(502);
+      const body = (await res.json()) as { code: string };
+      expect(body.code).toBe("k8s_unreachable");
     });
   });
 });
