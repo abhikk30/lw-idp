@@ -1,0 +1,9 @@
+releases:
+  - name: jenkins
+    namespace: jenkins
+    chart: jenkins/jenkins
+    version: 5.7.16
+    values:
+      - ../jenkins/values.yaml
+    # Ordering enforced by helmfiles: list in helmfile.yaml (after dex + ingress-nginx).
+    # Cross-sub-helmfile needs: references are not supported in this setup.

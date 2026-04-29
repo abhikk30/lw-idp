@@ -1,0 +1,130 @@
+# Jenkins chart values for the dev kind profile.
+# Dev profile uses HTTP only — TLS via cert-manager + mkcert lands in P1.9.
+
+controller:
+  # Resource sizing: kind has limited memory; cap container resources.
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1500m
+      memory: 1500Mi
+
+  # Pin Jenkins LTS — the chart-default 2.479.2 is older than the latest
+  # plugins on the update center, which fail to install with "requires a
+  # greater version of Jenkins (2.479.3)". Bumping to a newer LTS keeps
+  # `installLatestPlugins: true` working without manual plugin pins.
+  image:
+    registry: docker.io
+    repository: jenkins/jenkins
+    tag: "2.504.3-jdk17"
+
+  # Service exposed via Ingress; chart's built-in ingress block.
+  serviceType: ClusterIP
+  servicePort: 8080
+  targetPort: 8080
+  agentListenerPort: 50000
+
+  # The Jenkins URL Jenkins thinks it's reachable at — used for build URLs,
+  # OIDC redirect, etc. Must match the ingress hostname.
+  jenkinsUrl: "http://jenkins.lw-idp.local"
+
+  # Plugins required for OIDC + Configuration as Code. No version pins —
+  # let the chart's plugin manager pick versions compatible with the
+  # chart-default Jenkins image.
+  installPlugins:
+    - kubernetes
+    - workflow-aggregator
+    - git
+    - configuration-as-code
+    - oic-auth
+    - matrix-auth
+    - job-dsl
+  installLatestPlugins: true
+  installLatestSpecifiedPlugins: true
+
+  # JCasC (Configuration as Code) is what wires Dex SSO. The chart appends
+  # this YAML to /var/jenkins_home/casc_configs and the casc plugin loads it
+  # at startup.
+  JCasC:
+    defaultConfig: false
+    configScripts:
+      jenkins-config: |
+        jenkins:
+          systemMessage: "lw-idp Jenkins — Configured via JCasC. Login via Dex SSO."
+          numExecutors: 0  # controller runs no jobs; agents (kubernetes plugin) do
+          mode: EXCLUSIVE
+          authorizationStrategy:
+            globalMatrix:
+              # Dex-authenticated users get full read+build privileges in dev.
+              # P1.9 will tighten with team-scoped per-folder permissions.
+              permissions:
+                - "Overall/Administer:authenticated"
+        unclassified:
+          location:
+            url: "http://jenkins.lw-idp.local/"
+            adminAddress: "lw-idp-admin@example.com"
+      oidc-config: |
+        jenkins:
+          securityRealm:
+            oic:
+              clientId: "jenkins"
+              clientSecret: "${OIDC_CLIENT_SECRET}"
+              # Newer oic-auth plugin (4.5xx+) requires the OIDC endpoints
+              # to be nested under `serverConfiguration.wellKnown` rather
+              # than at the top level. `scopesOverride` replaces the old
+              # `scopes` field.
+              serverConfiguration:
+                wellKnown:
+                  wellKnownOpenIDConfigurationUrl: "http://dex.lw-idp.local/.well-known/openid-configuration"
+                  scopesOverride: "openid profile email groups"
+              userNameField: "email"
+              fullNameFieldName: "name"
+              emailFieldName: "email"
+              groupsFieldName: "groups"
+              # http://jenkins.lw-idp.local/securityRealm/finishLogin is the
+              # default callback — must match the Dex staticClient redirectURI.
+              logoutFromOpenidProvider: false
+              postLogoutRedirectUrl: "http://jenkins.lw-idp.local/"
+
+  # Mount the Dex client secret as an env var; JCasC interpolates it via
+  # ${OIDC_CLIENT_SECRET}. Sourced from the `jenkins-dex` Secret created by
+  # cluster-bootstrap.sh.
+  containerEnv:
+    - name: OIDC_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: jenkins-dex
+          key: clientSecret
+
+  # Built-in admin password — disabled because Dex is the SSO. The chart
+  # still creates `jenkins-admin-password` Secret; we let it generate one
+  # but don't expose it (admin UI shouldn't be reached via password in dev
+  # since OIDC is the only login).
+  adminPassword: ""
+
+  ingress:
+    enabled: true
+    apiVersion: networking.k8s.io/v1
+    ingressClassName: nginx
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: "false"
+      # Jenkins emits long-running streaming responses (build logs, console
+      # output); disable buffering so they reach the browser promptly.
+      nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    hostName: jenkins.lw-idp.local
+    paths: []
+    tls: []  # TLS lands in P1.9
+
+# Persistent storage for /var/jenkins_home (jobs, plugins, secrets).
+persistence:
+  enabled: true
+  storageClass: standard  # kind's default StorageClass
+  accessMode: ReadWriteOnce
+  size: 8Gi
+
+# Agents are dynamic Kubernetes pods spun up per build. Disabled in P2.1.0
+# (we just need the controller up); P2.1.2 enables agents + a real first job.
+agent:
+  enabled: false

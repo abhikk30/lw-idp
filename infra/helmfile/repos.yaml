@@ -11,6 +11,8 @@ repositories:
     url: https://charts.dexidp.io
   - name: argo
     url: https://argoproj.github.io/argo-helm
+  - name: jenkins
+    url: https://charts.jenkins.io
   # dragonflydb omitted: dragonfly-operator chart uses OCI (oci://ghcr.io/...)
   # and has no traditional helm repo index.
   - name: prometheus-community
