@@ -18,6 +18,15 @@ export const serviceCreateSchema = z.object({
   ownerTeamId: z.string().uuid("Must be a valid team UUID"),
   repoUrl: z.string().url("Must be a valid URL").optional().or(z.literal("")),
   tags: z.array(z.string().min(1).max(32)).max(10).optional(),
+  // Optional Argo CD Application fields. `gitRepoUrl` is the toggle: when set,
+  // the form's submit handler also POSTs an Argo CD Application after the
+  // catalog row is created. The other three are auto-defaulted server-side at
+  // submit time (branch=master, chartPath=charts/${slug}, namespace=lw-idp) so
+  // they remain optional individually.
+  gitRepoUrl: z.string().url("Must be a valid URL").optional().or(z.literal("")),
+  gitBranch: z.string().max(255).optional().or(z.literal("")),
+  chartPath: z.string().max(255).optional().or(z.literal("")),
+  targetNamespace: z.string().max(63).optional().or(z.literal("")),
 });
 
 export type ServiceCreateInput = z.infer<typeof serviceCreateSchema>;

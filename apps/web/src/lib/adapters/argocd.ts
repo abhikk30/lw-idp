@@ -1,5 +1,6 @@
 import type {
   ArgoApplication,
+  ArgoApplicationCreateSpec,
   ArgoCdAdapter,
   ArgoHealthStatus,
   ArgoOperationPhase,
@@ -175,6 +176,40 @@ export function createArgoCdAdapter(
         prune: opts?.prune ?? false,
         force: opts?.force ?? false,
       });
+    },
+
+    async createApplication(spec: ArgoApplicationCreateSpec): Promise<void> {
+      // Build the full upstream Argo CD Application JSON. The shape mirrors
+      // the ApplicationSet template so manually registered services behave
+      // identically to ApplicationSet-managed ones (same project, sync policy,
+      // helm value files, label).
+      const body = {
+        metadata: {
+          name: spec.name,
+          namespace: "argocd",
+          labels: {
+            "app.kubernetes.io/part-of": "lw-idp",
+          },
+        },
+        spec: {
+          project: "default",
+          source: {
+            repoURL: spec.repoUrl,
+            targetRevision: spec.targetRevision,
+            path: spec.path,
+            helm: { valueFiles: ["values.yaml"] },
+          },
+          destination: {
+            server: "https://kubernetes.default.svc",
+            namespace: spec.destinationNamespace,
+          },
+          syncPolicy: {
+            automated: { prune: false, selfHeal: true },
+            syncOptions: ["CreateNamespace=true", "ApplyOutOfSyncOnly=true"],
+          },
+        },
+      };
+      await post("/argocd/applications", body);
     },
   };
 }

@@ -38,6 +38,26 @@ export interface ArgoSyncOptions {
   force?: boolean;
 }
 
+/**
+ * Trimmed input for `createApplication`. The adapter expands this into the
+ * full Argo CD Application JSON shape (project=default, helm valueFiles, sync
+ * policy, lw-idp `part-of` label) so callers don't have to know the upstream
+ * schema. Shape mirrors what the ApplicationSet template generates so manually
+ * registered services behave identically to ApplicationSet-managed ones.
+ */
+export interface ArgoApplicationCreateSpec {
+  /** Argo CD Application name. For lw-idp: equals the catalog service slug. */
+  name: string;
+  /** Git repo URL (e.g. https://github.com/org/repo.git). */
+  repoUrl: string;
+  /** Git ref to track (branch, tag, or SHA). Typically "master" or "main". */
+  targetRevision: string;
+  /** Path inside the repo to the Helm chart (e.g. "charts/checkout"). */
+  path: string;
+  /** Destination namespace inside the in-cluster Kubernetes target. */
+  destinationNamespace: string;
+}
+
 export interface ArgoCdAdapter {
   /** List all Argo CD Applications labeled `app.kubernetes.io/part-of: lw-idp`. */
   listApplications(): Promise<ArgoApplication[]>;
@@ -48,4 +68,11 @@ export interface ArgoCdAdapter {
    * the upstream operation has been *accepted*, not when it completes.
    */
   sync(name: string, opts?: ArgoSyncOptions): Promise<void>;
+  /**
+   * Create an Argo CD Application. Used by the IDP's "Register service" form
+   * when the user opts in to also create an Argo CD Application in the same
+   * submit. Throws on upstream error so callers can surface a partial-success
+   * toast (catalog row stays — no rollback).
+   */
+  createApplication(spec: ArgoApplicationCreateSpec): Promise<void>;
 }
