@@ -75,7 +75,11 @@ export const SubmitsAndShowsToast: Story = {
     await waitFor(
       async () => {
         const body = within(document.body);
-        expect(await body.findByText(/checkout.*created/i)).toBeInTheDocument();
+        // Toast wording changed in P2.0.5 T4: catalog-row creation now reads
+        // "Service \"checkout\" registered" (and "...registered + Argo CD
+        // Application created" when Argo CD fields are filled — not exercised
+        // by this base story).
+        expect(await body.findByText(/checkout.*registered/i)).toBeInTheDocument();
       },
       { timeout: 3000 },
     );

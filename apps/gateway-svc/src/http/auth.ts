@@ -161,7 +161,10 @@ const authPluginFn: FastifyPluginAsync<AuthPluginOptions> = async (
       ...(opts.cookie.domain !== undefined ? { domain: opts.cookie.domain } : {}),
     });
     reply.header("set-cookie", clear);
-    return reply.code(204).send();
+    // 303 redirect (not 204) so a browser-submitted POST form navigates the
+    // user to a confirmation page they can see — the previous 204 dropped the
+    // cookie silently with no visual feedback (P2.0.5 UX feedback).
+    return reply.redirect("/logged-out", 303);
   });
 };
 

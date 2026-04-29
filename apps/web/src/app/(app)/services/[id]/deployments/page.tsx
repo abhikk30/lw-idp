@@ -30,7 +30,7 @@ export default async function DeploymentsPage({ params }: PageProps): Promise<Re
   const { data: service } = await client.GET("/services/{id}", { params: { path: { id } } });
   const slug = service?.slug ?? id;
 
-  const adapter = getArgoCdAdapter();
+  const adapter = await getArgoCdAdapter();
   let initialApplication: ArgoApplication;
   try {
     initialApplication = await adapter.getApplication(slug);

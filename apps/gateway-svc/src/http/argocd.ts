@@ -47,6 +47,19 @@ async function mapUpstreamError(
     reply.code(404).send({ code: "not_found", message });
     return true;
   }
+  if (upstream.status === 409) {
+    let upstreamMessage = "application already exists";
+    try {
+      const body = (await upstream.json()) as { message?: string };
+      if (typeof body.message === "string") {
+        upstreamMessage = body.message;
+      }
+    } catch {
+      // ignore
+    }
+    reply.code(409).send({ code: "argocd_conflict", message: upstreamMessage });
+    return true;
+  }
   if (upstream.status >= 500) {
     reply.code(503).send({ code: "deploy_plane_unavailable", message: "argo cd unavailable" });
     return true;
@@ -179,6 +192,27 @@ const argocdPluginFn: FastifyPluginAsync<ArgocdPluginOptions> = async (fastify, 
       });
     },
   );
+
+  // POST /api/v1/argocd/applications
+  //   ->  POST /api/v1/applications
+  // Body: an Argo CD Application spec (passed through verbatim). Argo CD validates the schema;
+  // we only reject if the body is not a JSON object (array, string, null, etc.).
+  fastify.post<{ Body: unknown }>("/api/v1/argocd/applications", async (req, reply) => {
+    const bearer = getBearer(req, reply);
+    if (!bearer) {
+      return reply;
+    }
+    if (req.body === null || typeof req.body !== "object" || Array.isArray(req.body)) {
+      return reply.code(400).send({ code: "invalid_body", message: "body must be a JSON object" });
+    }
+    return proxy({
+      method: "POST",
+      path: "/api/v1/applications",
+      bearer,
+      body: req.body,
+      reply,
+    });
+  });
 
   // POST /api/v1/argocd/applications/:name/sync
   //   ->  POST /api/v1/applications/:name/sync

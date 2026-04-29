@@ -257,6 +257,9 @@ export function ServicesTable({ initialData }: ServicesTableProps): ReactNode {
           ))}
         </select>
         <div className="flex-1" />
+        <Button asChild variant="outline">
+          <Link href="/services/import">Import from Argo CD</Link>
+        </Button>
         <Button asChild>
           <Link href="/services/new">Register service</Link>
         </Button>

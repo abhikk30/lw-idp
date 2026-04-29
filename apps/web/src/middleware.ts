@@ -7,7 +7,17 @@ import { type NextRequest, NextResponse } from "next/server";
  * /_next, /favicon — Next/asset routes
  * /mock-* — explicit dev/MSW endpoints (not present in prod build)
  */
-const PUBLIC_PREFIXES = ["/auth/", "/api/healthz", "/api/readyz", "/_next/", "/favicon", "/mock-"];
+const PUBLIC_PREFIXES = [
+  "/auth/",
+  "/api/healthz",
+  "/api/readyz",
+  "/_next/",
+  "/favicon",
+  "/mock-",
+  // Logout confirmation page — gateway /auth/logout 303-redirects here after
+  // clearing the session cookie. Must be reachable without a session.
+  "/logged-out",
+];
 
 const SESSION_COOKIE = "lw-sid";
 

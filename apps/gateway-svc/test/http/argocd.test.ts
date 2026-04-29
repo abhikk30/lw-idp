@@ -317,4 +317,147 @@ describe("gateway /api/v1/argocd/*", () => {
     expect(res.status).toBe(401);
     expect(fake.recorded).toHaveLength(0);
   });
+
+  // ── POST /api/v1/argocd/applications ─────────────────────────────────────
+
+  it("POST /applications with valid body calls upstream with bearer and returns 200 + response body", async () => {
+    const appSpec = {
+      apiVersion: "argoproj.io/v1alpha1",
+      kind: "Application",
+      metadata: { name: "my-app", namespace: "argocd" },
+      spec: {
+        project: "default",
+        source: {
+          repoURL: "https://github.com/org/repo",
+          path: "helm/my-app",
+          targetRevision: "HEAD",
+        },
+        destination: { server: "https://kubernetes.default.svc", namespace: "my-app" },
+      },
+    };
+    const createdApp = { ...appSpec, status: {} };
+
+    fake.setHandler(
+      () =>
+        new Response(JSON.stringify(createdApp), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+    );
+
+    const res = await fetch(`${gatewayUrl}/api/v1/argocd/applications`, {
+      method: "POST",
+      headers: { ...okCookie, "content-type": "application/json" },
+      body: JSON.stringify(appSpec),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as typeof createdApp;
+    expect(body.metadata.name).toBe("my-app");
+
+    expect(fake.recorded).toHaveLength(1);
+    const call = fake.recorded[0];
+    expect(call.method).toBe("POST");
+    expect(call.url).toBe(`${ARGOCD_BASE}/api/v1/applications`);
+    expect(call.headers.authorization).toBe("Bearer fake.jwt.token");
+    expect(call.headers["content-type"]).toBe("application/json");
+    expect(call.body).toEqual(appSpec);
+  });
+
+  it("POST /applications with missing session idToken returns 401 reauth_required and no upstream call", async () => {
+    fake.setHandler(() => {
+      throw new Error("upstream should not be called");
+    });
+
+    const res = await fetch(`${gatewayUrl}/api/v1/argocd/applications`, {
+      method: "POST",
+      headers: { ...noIdtCookie, "content-type": "application/json" },
+      body: JSON.stringify({ kind: "Application" }),
+    });
+    expect(res.status).toBe(401);
+    const body = (await res.json()) as { code: string };
+    expect(body.code).toBe("reauth_required");
+    expect(fake.recorded).toHaveLength(0);
+  });
+
+  it("POST /applications with non-object body returns 400 invalid_body", async () => {
+    fake.setHandler(() => {
+      throw new Error("upstream should not be called");
+    });
+
+    // Array body
+    const resArray = await fetch(`${gatewayUrl}/api/v1/argocd/applications`, {
+      method: "POST",
+      headers: { ...okCookie, "content-type": "application/json" },
+      body: JSON.stringify([{ kind: "Application" }]),
+    });
+    expect(resArray.status).toBe(400);
+    expect(((await resArray.json()) as { code: string }).code).toBe("invalid_body");
+
+    // String body
+    const resString = await fetch(`${gatewayUrl}/api/v1/argocd/applications`, {
+      method: "POST",
+      headers: { ...okCookie, "content-type": "application/json" },
+      body: JSON.stringify("not-an-object"),
+    });
+    expect(resString.status).toBe(400);
+    expect(((await resString.json()) as { code: string }).code).toBe("invalid_body");
+
+    expect(fake.recorded).toHaveLength(0);
+  });
+
+  it("POST /applications upstream 409 maps to IDP 409 argocd_conflict with upstream message", async () => {
+    fake.setHandler(
+      () =>
+        new Response(
+          JSON.stringify({ message: "application already exists in namespace argocd" }),
+          { status: 409, headers: { "content-type": "application/json" } },
+        ),
+    );
+
+    const res = await fetch(`${gatewayUrl}/api/v1/argocd/applications`, {
+      method: "POST",
+      headers: { ...okCookie, "content-type": "application/json" },
+      body: JSON.stringify({ metadata: { name: "dup-app" } }),
+    });
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { code: string; message: string };
+    expect(body.code).toBe("argocd_conflict");
+    expect(body.message).toContain("already exists");
+  });
+
+  it("POST /applications upstream 403 maps to IDP 403 argocd_forbidden", async () => {
+    fake.setHandler(() => new Response("{}", { status: 403 }));
+
+    const res = await fetch(`${gatewayUrl}/api/v1/argocd/applications`, {
+      method: "POST",
+      headers: { ...okCookie, "content-type": "application/json" },
+      body: JSON.stringify({ metadata: { name: "app-x" } }),
+    });
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { code: string }).code).toBe("argocd_forbidden");
+  });
+
+  it("POST /applications upstream 5xx or network error maps to IDP 503 deploy_plane_unavailable", async () => {
+    // 5xx
+    fake.setHandler(() => new Response("{}", { status: 500 }));
+    let res = await fetch(`${gatewayUrl}/api/v1/argocd/applications`, {
+      method: "POST",
+      headers: { ...okCookie, "content-type": "application/json" },
+      body: JSON.stringify({ metadata: { name: "app-y" } }),
+    });
+    expect(res.status).toBe(503);
+    expect(((await res.json()) as { code: string }).code).toBe("deploy_plane_unavailable");
+
+    // Network error
+    fake.setHandler(() => {
+      throw new Error("ECONNREFUSED");
+    });
+    res = await fetch(`${gatewayUrl}/api/v1/argocd/applications`, {
+      method: "POST",
+      headers: { ...okCookie, "content-type": "application/json" },
+      body: JSON.stringify({ metadata: { name: "app-z" } }),
+    });
+    expect(res.status).toBe(503);
+    expect(((await res.json()) as { code: string }).code).toBe("deploy_plane_unavailable");
+  });
 });
