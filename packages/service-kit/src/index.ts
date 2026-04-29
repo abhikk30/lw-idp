@@ -2,6 +2,13 @@ export * from "./server.js";
 export * from "./shutdown.js";
 export * from "./env.js";
 export * from "./redis.js";
+export {
+  createLokiClient,
+  LokiError,
+  type LokiLine,
+  type LokiClient,
+  type LokiQueryRangeOpts,
+} from "./observability/loki.js";
 
 import { type BuildServerOptions, type LwIdpServer, buildServer } from "./server.js";
 import { wireGracefulShutdown } from "./shutdown.js";
