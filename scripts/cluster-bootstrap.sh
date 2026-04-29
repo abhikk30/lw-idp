@@ -179,5 +179,15 @@ for i in $(seq 1 30); do
 done
 kubectl apply -f infra/argocd/applicationset.yaml
 
+echo "==> applying argocd-notifications config (idempotent)"
+# Server-side apply patches the chart-managed argocd-notifications-cm without
+# clobbering keys owned by the Helm release (e.g. context.argocdUrl).
+# --force-conflicts lets us take ownership of keys we add here.
+kubectl apply --server-side --force-conflicts -f infra/argocd/notifications.yaml
+# Bounce the controller so it picks up the new templates and triggers immediately
+# rather than waiting for its next full-resync interval.
+kubectl -n argocd rollout restart deploy argocd-notifications-controller
+kubectl -n argocd rollout status deploy argocd-notifications-controller --timeout=120s
+
 echo "✓ bootstrap complete"
 "${HERE}/cluster-doctor.sh" "${PROFILE}"
