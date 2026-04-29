@@ -33,13 +33,23 @@ configs:
   rbac:
     # Single role for all authenticated users in P2.0.
     # Two roles in P2.0.5:
-    #   lw-idp-user   — read + sync (every authenticated user gets this)
-    #   lw-idp-author — create / update / delete Applications (every
-    #                   authenticated user gets this in dev; P1.9 will
-    #                   restrict to a separate Dex group like
-    #                   `lw-idp:authors` derived from a GitHub team).
-    # Team-scoped policy is deferred to P1.9 / P2.2.
-    policy.default: ""
+    #   lw-idp-user   — read + sync (reader / operator)
+    #   lw-idp-author — create / update / delete Applications (inherits
+    #                   lw-idp-user via the `g, role:author, role:user`
+    #                   binding so authors keep get/sync power too).
+    #
+    # Dev pragma: `policy.default: role:lw-idp-author` grants every
+    # authenticated user the author role automatically. P1.9 will tighten
+    # this — set policy.default to `role:lw-idp-user` and bind specific
+    # Dex groups (derived from GitHub team membership) to `role:lw-idp-
+    # author` for actual privilege separation.
+    #
+    # Earlier P2.0 attempted `g, "lw-idp:authenticated", role:lw-idp-user`
+    # which silently never matched anyone — Dex's GitHub connector emits
+    # `<org>:<team>` group claims, NOT a synthetic `lw-idp:authenticated`
+    # string. `policy.default` is the canonical "every authenticated user"
+    # mechanism.
+    policy.default: role:lw-idp-author
     policy.csv: |
       p, role:lw-idp-user, applications, get, */*, allow
       p, role:lw-idp-user, applications, sync, */*, allow
@@ -47,8 +57,7 @@ configs:
       p, role:lw-idp-author, applications, create, */*, allow
       p, role:lw-idp-author, applications, update, */*, allow
       p, role:lw-idp-author, applications, delete, */*, allow
-      g, "lw-idp:authenticated", role:lw-idp-user
-      g, "lw-idp:authenticated", role:lw-idp-author
+      g, role:lw-idp-author, role:lw-idp-user
 
 server:
   ingress:
