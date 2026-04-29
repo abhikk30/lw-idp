@@ -29,6 +29,15 @@ configs:
       clientID: argocd
       clientSecret: $argocd-dex:clientSecret
       requestedScopes: ["openid", "profile", "email", "groups"]
+      # Accept tokens issued for either the IDP gateway or Argo CD client.
+      # Spec §3.1 invariant 3 promised "trustedPeers makes the same id_token
+      # valid for both audiences" — but trustedPeers in Dex actually enables
+      # RFC 8693 token exchange, NOT multi-aud token issuance. The cleaner
+      # workaround is Argo CD's allowedAudiences which lets its OIDC verifier
+      # accept tokens whose `aud` claim matches any in the list.
+      allowedAudiences:
+        - argocd
+        - lw-idp-gateway
 
   rbac:
     # Single role for all authenticated users in P2.0.
