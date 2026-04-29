@@ -14,7 +14,7 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type ColumnDef, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
 import Link from "next/link";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useCallback, useMemo, useState } from "react";
 import { ulid } from "ulid";
 import { apiClient } from "../../lib/api/client.js";
 
@@ -331,22 +331,31 @@ export function ImportTable({ initialCandidates, teams }: ImportTableProps): Rea
 
   const candidates = (data?.candidates ?? []).filter((c) => !hidden.has(c.name));
 
-  const columns = buildColumns(ownerTeamId, (name) => {
-    // After import success: keep the row visible briefly with "✓ Imported",
-    // then drop it from the visible list on next render. We do that here
-    // synchronously via the hidden set, which removes the row as soon as the
-    // user moves to another row. (We avoid setTimeout to keep tests deterministic.)
+  // Stable handler so the columns memo doesn't churn every render.
+  const onImported = useCallback((name: string) => {
     setHidden((prev) => {
       const next = new Set(prev);
       next.add(name);
       return next;
     });
-  });
+  }, []);
+
+  // Memoize columns so TanStack Table sees a stable reference across renders.
+  // Without this, every `setHidden` re-creates the columns array which can
+  // cause the table to reset internal state and remount cell components —
+  // destroying the per-row useState/useMutation in <ImportAction>.
+  const columns = useMemo(() => buildColumns(ownerTeamId, onImported), [ownerTeamId, onImported]);
 
   const table = useReactTable({
     data: candidates,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    // Stable row IDs (candidate name is unique). Without this, TanStack uses
+    // the row index — when row 0 is hidden after import, every other row's
+    // index shifts, React unmounts/remounts every <ImportAction>, and any
+    // in-flight per-row mutation state is lost. Keying by name preserves
+    // identity so unaffected rows keep their `useState`.
+    getRowId: (row) => row.name,
   });
 
   if (candidates.length === 0) {
