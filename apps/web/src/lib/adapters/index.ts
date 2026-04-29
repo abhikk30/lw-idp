@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { ArgoCdAdapter, DeploymentAdapter, PipelineAdapter } from "@lw-idp/contracts";
-import { createArgoCdAdapter } from "./argocd.js";
+import { createServerArgoCdAdapter } from "./argocd.server.js";
 import { mockDeploymentAdapter } from "./deployments.mock.js";
 import { mockPipelineAdapter } from "./pipelines.mock.js";
 
@@ -22,9 +22,14 @@ export function getPipelineAdapter(): PipelineAdapter {
 
 /**
  * Returns the real Argo CD adapter backed by the gateway proxy routes.
- * Always returns the live implementation — no mock variant (Argo CD is
- * always present in any running cluster).
+ * SERVER-side variant: uses absolute internal-DNS URL + forwards the
+ * inbound request's `cookie` header via `next/headers`. Async because
+ * `headers()` is async in Next 15.
+ *
+ * Client components must use `createArgoCdAdapter()` from `./argocd.js`
+ * directly — that variant uses relative URLs + `credentials: "same-origin"`
+ * which only works in the browser context.
  */
-export function getArgoCdAdapter(): ArgoCdAdapter {
-  return createArgoCdAdapter();
+export async function getArgoCdAdapter(): Promise<ArgoCdAdapter> {
+  return await createServerArgoCdAdapter();
 }
