@@ -11,6 +11,7 @@ import type { ReactNode } from "react";
 import { LogsPanel } from "../../../../components/observability/logs-panel.client.js";
 import { MetricsSparkline } from "../../../../components/observability/metrics-sparkline.client.js";
 import { PodStatusStrip } from "../../../../components/observability/pod-status-strip.client.js";
+import { TracesPanel } from "../../../../components/observability/traces-panel.client.js";
 import { TeamName } from "../../../../components/team-name.client.js";
 import { createServerClient } from "../../../../lib/api/server.js";
 
@@ -38,8 +39,7 @@ export default async function ServiceOverviewPage({ params }: PageProps): Promis
       </div>
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         <LogsPanel serviceSlug={data.slug} />
-        {/* TracesPanel slot — Task F2 will fill this */}
-        <div />
+        <TracesPanel serviceSlug={data.slug} />
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
