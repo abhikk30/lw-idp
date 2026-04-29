@@ -43,6 +43,7 @@ kubectl -n kube-system get cm coredns -o yaml \
         print "        rewrite name grafana.lw-idp.local " t
         print "        rewrite name argocd.lw-idp.local " t
         print "        rewrite name jenkins.lw-idp.local " t
+        print "        rewrite name sample.lw-idp.local " t
         print "        # lw-idp-rewrite-end"
         done=1
       }
