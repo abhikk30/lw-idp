@@ -18,7 +18,9 @@ controller:
   image:
     registry: docker.io
     repository: jenkins/jenkins
-    tag: "2.504.3-jdk17"
+    # JDK 21. Jenkins UI warns "Java 17 end of life in Jenkins" on jdk17 with
+    # support ending Mar 31 2026; jdk21 is the supported runtime.
+    tag: "2.504.3-jdk21"
 
   # Service exposed via Ingress; chart's built-in ingress block.
   serviceType: ClusterIP
@@ -83,6 +85,15 @@ controller:
               fullNameFieldName: "name"
               emailFieldName: "email"
               groupsFieldName: "groups"
+              # Case-sensitive identity matching. Default for new oic-auth
+              # configs; setting explicitly silences the security advisory
+              # banner on the Jenkins UI ("OIDC realm was configured before
+              # the introduction of case-sensitivity options"). Two
+              # different-cased emails are treated as different users —
+              # safer than the legacy case-insensitive behavior which could
+              # merge identities.
+              userIdStrategy: "caseSensitive"
+              groupIdStrategy: "caseSensitive"
               # http://jenkins.lw-idp.local/securityRealm/finishLogin is the
               # default callback — must match the Dex staticClient redirectURI.
               logoutFromOpenidProvider: false
