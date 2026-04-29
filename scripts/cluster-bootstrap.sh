@@ -135,6 +135,22 @@ kubectl -n jenkins create secret generic jenkins-dex \
   --from-literal=clientSecret="${JENKINS_CLIENT_SECRET}" \
   --dry-run=client -o yaml | kubectl apply -f -
 
+# gateway-svc-jenkins-api — placeholder Secret. Gateway-svc reads
+# JENKINS_API_USERNAME + JENKINS_API_TOKEN from this Secret; until the
+# user generates an API token via the Jenkins UI (one-time per fresh
+# cluster), the gateway returns 503 `jenkins_not_configured` for any
+# /api/v1/jenkins/* call. See docs/runbooks/jenkins-api-token.md for
+# the one-line `kubectl patch` command to populate it.
+#
+# Idempotent: re-runs preserve any user-set values rather than zeroing
+# them. We use a trick — only create the Secret if it doesn't exist
+# yet — so a real token, once set, survives subsequent bootstraps.
+if ! kubectl -n lw-idp get secret gateway-svc-jenkins-api >/dev/null 2>&1; then
+  kubectl -n lw-idp create secret generic gateway-svc-jenkins-api \
+    --from-literal=JENKINS_API_USERNAME="" \
+    --from-literal=JENKINS_API_TOKEN=""
+fi
+
 # gateway-svc-argocd-webhook + argocd-notifications-secret share the same
 # bearer token. argocd-notifications signs outbound webhooks to the gateway
 # with this token in the `X-Lw-Idp-Webhook-Token` header; the gateway
