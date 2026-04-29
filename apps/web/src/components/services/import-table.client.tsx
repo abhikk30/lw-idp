@@ -11,10 +11,10 @@ import {
   TableHeader,
   TableRow,
 } from "@lw-idp/ui/components/table";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ColumnDef, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
 import Link from "next/link";
-import { type ReactNode, useCallback, useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { ulid } from "ulid";
 import { apiClient } from "../../lib/api/client.js";
 
@@ -147,11 +147,11 @@ function HealthPill({ status }: { status: string }): ReactNode {
 interface ImportActionProps {
   candidate: ImportCandidate;
   ownerTeamId: string | undefined;
-  onImported: (name: string) => void;
 }
 
-function ImportAction({ candidate, ownerTeamId, onImported }: ImportActionProps): ReactNode {
+function ImportAction({ candidate, ownerTeamId }: ImportActionProps): ReactNode {
   const [state, setState] = useState<RowStatus>({ status: "idle" });
+  const queryClient = useQueryClient();
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -187,7 +187,11 @@ function ImportAction({ candidate, ownerTeamId, onImported }: ImportActionProps)
     },
     onSuccess: () => {
       setState({ status: "imported" });
-      onImported(candidate.name);
+      // Invalidate the candidates query — server-side diff naturally drops
+      // the just-imported app on next fetch. We rely on this rather than
+      // a local hidden-Set to avoid the parent re-render storm that bricked
+      // the browser after ~5 imports (P2.0.6 fix).
+      void queryClient.invalidateQueries({ queryKey: ["services", "import-candidates"] });
     },
     onError: (err: Error) => {
       setState({ status: "failed", message: err.message });
@@ -240,10 +244,7 @@ function ImportAction({ candidate, ownerTeamId, onImported }: ImportActionProps)
 // Table column factory
 // ---------------------------------------------------------------------------
 
-function buildColumns(
-  ownerTeamId: string | undefined,
-  onImported: (name: string) => void,
-): ColumnDef<ImportCandidate>[] {
+function buildColumns(ownerTeamId: string | undefined): ColumnDef<ImportCandidate>[] {
   return [
     {
       accessorKey: "name",
@@ -291,9 +292,7 @@ function buildColumns(
     {
       id: "action",
       header: () => <span className="sr-only">Action</span>,
-      cell: ({ row }) => (
-        <ImportAction candidate={row.original} ownerTeamId={ownerTeamId} onImported={onImported} />
-      ),
+      cell: ({ row }) => <ImportAction candidate={row.original} ownerTeamId={ownerTeamId} />,
     },
   ];
 }
@@ -307,10 +306,6 @@ interface ImportCandidatesResponse {
 }
 
 export function ImportTable({ initialCandidates, teams }: ImportTableProps): ReactNode {
-  // Locally hide rows once imported, so the user doesn't see a stale "✓ Imported"
-  // mixed in with not-yet-imported candidates after multiple clicks.
-  const [hidden, setHidden] = useState<Set<string>>(new Set());
-
   const ownerTeamId = teams[0]?.id;
 
   const { data } = useQuery({
@@ -329,22 +324,15 @@ export function ImportTable({ initialCandidates, teams }: ImportTableProps): Rea
     staleTime: 30_000,
   });
 
-  const candidates = (data?.candidates ?? []).filter((c) => !hidden.has(c.name));
+  // Server-side response is the source of truth: import-candidates returns
+  // Argo CD apps NOT in the catalog. After a successful import, the
+  // mutation's onSuccess invalidates this query → refetch → imported app
+  // is naturally absent. No local `hidden` Set needed — avoiding it
+  // sidesteps the cumulative re-render storm that hung the browser after
+  // ~5 imports (P2.0.6 fix).
+  const candidates = data?.candidates ?? [];
 
-  // Stable handler so the columns memo doesn't churn every render.
-  const onImported = useCallback((name: string) => {
-    setHidden((prev) => {
-      const next = new Set(prev);
-      next.add(name);
-      return next;
-    });
-  }, []);
-
-  // Memoize columns so TanStack Table sees a stable reference across renders.
-  // Without this, every `setHidden` re-creates the columns array which can
-  // cause the table to reset internal state and remount cell components —
-  // destroying the per-row useState/useMutation in <ImportAction>.
-  const columns = useMemo(() => buildColumns(ownerTeamId, onImported), [ownerTeamId, onImported]);
+  const columns = useMemo(() => buildColumns(ownerTeamId), [ownerTeamId]);
 
   const table = useReactTable({
     data: candidates,

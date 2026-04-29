@@ -8,6 +8,7 @@ import {
 } from "@lw-idp/ui/components/card";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
+import { TeamName } from "../../../../components/team-name.client.js";
 import { createServerClient } from "../../../../lib/api/server.js";
 
 export const dynamic = "force-dynamic";
@@ -43,7 +44,11 @@ export default async function ServiceOverviewPage({ params }: PageProps): Promis
             </Badge>
           </Field>
           <Field label="Owner team">
-            <span className="font-mono text-sm">{data.ownerTeamId}</span>
+            {data.ownerTeamId ? (
+              <TeamName id={data.ownerTeamId} />
+            ) : (
+              <span className="text-muted-foreground text-sm italic">unowned</span>
+            )}
           </Field>
           {data.repoUrl ? (
             <Field label="Repository">
