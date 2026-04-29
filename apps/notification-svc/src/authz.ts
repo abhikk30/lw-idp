@@ -70,6 +70,16 @@ export function canUserSeeEvent(session: SessionRecord, env: Envelope): boolean 
       // Cluster CRUD events are platform-admin-only (spec §7.6).
       return isPlatformAdmin(session);
     }
+    case "idp.deploy.application.synced":
+    case "idp.deploy.application.degraded":
+    case "idp.deploy.application.failed":
+    case "idp.deploy.application.running": {
+      // P2.0 spec §4.7: every authenticated session sees all Argo CD
+      // application state events. Team-scoped filtering (only show events
+      // for services owned by my teams) is deferred to P1.9 / P2.2 once
+      // catalog-svc joins are available in the WS authz path.
+      return true;
+    }
     default: {
       // Default-deny on unknown subject.
       return false;
