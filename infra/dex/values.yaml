@@ -46,6 +46,16 @@ config:
       secret: devnotreal-argocd
       trustedPeers:
         - lw-idp-gateway
+    - id: jenkins
+      name: Jenkins
+      # Jenkins's `oic-auth` plugin uses /securityRealm/finishLogin as the OIDC
+      # callback path by default. The literal MUST match or Dex rejects with
+      # "invalid redirect URI".
+      redirectURIs: ["http://jenkins.lw-idp.local/securityRealm/finishLogin"]
+      # Same env-var-substitution gotcha as the other clients. The literal
+      # MUST match what cluster-bootstrap.sh writes to the `jenkins-dex`
+      # Secret in the `jenkins` namespace.
+      secret: devnotreal-jenkins
 
 envFrom:
   - secretRef:

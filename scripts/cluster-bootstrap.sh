@@ -42,6 +42,7 @@ kubectl -n kube-system get cm coredns -o yaml \
         print "        rewrite name portal.lw-idp.local " t
         print "        rewrite name grafana.lw-idp.local " t
         print "        rewrite name argocd.lw-idp.local " t
+        print "        rewrite name jenkins.lw-idp.local " t
         print "        # lw-idp-rewrite-end"
         done=1
       }
@@ -58,6 +59,7 @@ kubectl -n dex create secret generic dex-env \
   --from-literal=GITHUB_CLIENT_SECRET="${DEX_GITHUB_CLIENT_SECRET:-devnotreal}" \
   --from-literal=GATEWAY_CLIENT_SECRET="${DEX_GATEWAY_CLIENT_SECRET:-devnotreal}" \
   --from-literal=ARGOCD_CLIENT_SECRET="${DEX_ARGOCD_CLIENT_SECRET:-devnotreal-argocd}" \
+  --from-literal=JENKINS_CLIENT_SECRET="${DEX_JENKINS_CLIENT_SECRET:-devnotreal-jenkins}" \
   --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n dex rollout restart deploy/dex || true
 
@@ -122,6 +124,16 @@ kubectl -n argocd create secret generic argocd-dex \
 # the OIDC client_secret silently resolves to empty and Dex returns
 # "Invalid client credentials" on token exchange.
 kubectl -n argocd label secret argocd-dex app.kubernetes.io/part-of=argocd --overwrite
+
+# jenkins-dex (Dex client secret for Jenkins OIDC).
+# The Jenkins controller mounts this Secret as the OIDC_CLIENT_SECRET env
+# var via JCasC; see infra/jenkins/values.yaml `containerEnv`. The literal
+# must match the `jenkins` staticClient `secret:` in infra/dex/values.yaml.
+JENKINS_CLIENT_SECRET=$(kubectl -n dex get secret dex-env -o jsonpath='{.data.JENKINS_CLIENT_SECRET}' | base64 -d)
+kubectl create namespace jenkins --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n jenkins create secret generic jenkins-dex \
+  --from-literal=clientSecret="${JENKINS_CLIENT_SECRET}" \
+  --dry-run=client -o yaml | kubectl apply -f -
 
 # gateway-svc-argocd-webhook + argocd-notifications-secret share the same
 # bearer token. argocd-notifications signs outbound webhooks to the gateway
