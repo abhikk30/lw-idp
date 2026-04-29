@@ -144,6 +144,16 @@ controller:
               # default callback — must match the Dex staticClient redirectURI.
               logoutFromOpenidProvider: false
               postLogoutRedirectUrl: "http://jenkins.lw-idp.local/"
+      credentials-config: |
+        credentials:
+          system:
+            domainCredentials:
+              - credentials:
+                  - string:
+                      scope: GLOBAL
+                      id: github-pat
+                      secret: "${GITHUB_PAT}"
+                      description: "GitHub PAT for idp-sample-nginx push-back (P2.1.2)"
 
   # Mount the Dex client secret as an env var; JCasC interpolates it via
   # ${OIDC_CLIENT_SECRET}. Sourced from the `jenkins-dex` Secret created by
@@ -166,6 +176,12 @@ controller:
         secretKeyRef:
           name: jenkins-svc-token
           key: JENKINS_SVC_TOKEN
+          optional: true
+    - name: GITHUB_PAT
+      valueFrom:
+        secretKeyRef:
+          name: jenkins-github-pat
+          key: GITHUB_PAT
           optional: true
 
   # Init scripts run after JCasC. Files placed under
