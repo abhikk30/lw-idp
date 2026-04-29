@@ -61,6 +61,33 @@ export function EventStreamProvider({
     let timer: ReturnType<typeof setTimeout> | undefined;
     let terminalToastShown = false;
 
+    // Coalesce rapid bursts of events (e.g. Argo CD selfHeal cycles fire
+    // on-sync-running + on-deployed + on-health-degraded in quick succession
+    // for each Application). Without batching, each frame triggered an
+    // immediate invalidateQueries + toast, which under load (>50 frames in
+    // a few seconds) caused render storms that froze the browser after the
+    // tab had been idle for a while.
+    const pendingKeys = new Map<string, readonly unknown[]>(); // serialized key -> original key
+    let flushScheduled = false;
+    const lastToastAt = new Map<string, number>(); // (entity:action) -> ms timestamp
+    const TOAST_THROTTLE_MS = 1_500;
+
+    const flush = (): void => {
+      flushScheduled = false;
+      for (const [, key] of pendingKeys) {
+        void queryClient.invalidateQueries({ queryKey: key });
+      }
+      pendingKeys.clear();
+    };
+
+    const scheduleFlush = (): void => {
+      if (flushScheduled) {
+        return;
+      }
+      flushScheduled = true;
+      setTimeout(flush, 250);
+    };
+
     const connect = (): void => {
       if (stoppedRef.current) {
         return;
@@ -99,11 +126,25 @@ export function EventStreamProvider({
         if (!entity || !action) {
           return;
         }
-        const keys = invalidationKeysFor(entity, action);
-        for (const key of keys) {
-          void queryClient.invalidateQueries({ queryKey: key });
+        // Coalesce invalidations: buffer the keys, flush in a single
+        // 250ms window. Repeated invalidations for the same key collapse
+        // to one refetch.
+        for (const key of invalidationKeysFor(entity, action)) {
+          pendingKeys.set(JSON.stringify(key), key);
         }
-        toast(humanizeFrame(entity, action, frame.payload));
+        scheduleFlush();
+
+        // Throttle toasts per (entity, action): one toast every 1.5s max.
+        // A reconcile cycle that fires sync-running + deployed back-to-back
+        // for the same app emits two toasts; under burst load the second
+        // gets dropped, which is fine — the first one already told the user.
+        const toastKey = `${entity}:${action}`;
+        const now = Date.now();
+        const last = lastToastAt.get(toastKey) ?? 0;
+        if (now - last >= TOAST_THROTTLE_MS) {
+          lastToastAt.set(toastKey, now);
+          toast(humanizeFrame(entity, action, frame.payload));
+        }
       });
 
       ws.addEventListener("close", (ev: CloseEvent) => {
