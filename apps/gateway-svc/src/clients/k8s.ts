@@ -1,5 +1,5 @@
 import * as fs from "node:fs";
-import { Agent } from "node:https";
+import { Agent, fetch as undiciFetch } from "undici";
 
 export interface K8sPod {
   name: string;
@@ -38,7 +38,10 @@ export function createK8sClient(opts: K8sClientOpts = {}): K8sClient {
     opts.bearerToken ?? readIfExists("/var/run/secrets/kubernetes.io/serviceaccount/token");
   const caPath = opts.caPath ?? "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt";
   const ca = !opts.insecureHttp ? readIfExists(caPath) : undefined;
-  const agent = ca ? new Agent({ ca }) : undefined;
+  // Pin the cluster CA so the kubelet's self-signed serving cert verifies. We
+  // route through undici's fetch (not Node's globalThis.fetch) so we can pass
+  // a dispatcher; globalThis.fetch ignores `dispatcher` per the spec.
+  const dispatcher = ca ? new Agent({ connect: { ca } }) : undefined;
 
   return {
     async listPods(namespace, labelSelector) {
@@ -46,15 +49,10 @@ export function createK8sClient(opts: K8sClientOpts = {}): K8sClient {
       if (labelSelector) {
         url.searchParams.set("labelSelector", labelSelector);
       }
-      const init: RequestInit = {
+      const res = await undiciFetch(url, {
         headers: token ? { authorization: `Bearer ${token}` } : {},
-      };
-      // node fetch supports `dispatcher` in newer Node — but for simplicity we
-      // ignore the agent in tests (insecureHttp) and rely on the in-cluster
-      // service-account token + the chart's runtime trust store in prod.
-      // The CA verification is a follow-up if/when we run gateway out-of-cluster.
-      void agent;
-      const res = await fetch(url, init);
+        ...(dispatcher ? { dispatcher } : {}),
+      });
       if (!res.ok) {
         throw new Error(`k8s list pods failed: ${res.status}`);
       }
