@@ -16,6 +16,13 @@ export {
   type SpanNode,
   type TempoClient,
 } from "./observability/tempo.js";
+export {
+  createPromClient,
+  PromError,
+  type PromPoint,
+  type PromQueryRangeOpts,
+  type PromClient,
+} from "./observability/prometheus.js";
 
 import { type BuildServerOptions, type LwIdpServer, buildServer } from "./server.js";
 import { wireGracefulShutdown } from "./shutdown.js";
