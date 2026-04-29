@@ -9,6 +9,13 @@ export {
   type LokiClient,
   type LokiQueryRangeOpts,
 } from "./observability/loki.js";
+export {
+  createTempoClient,
+  TempoError,
+  type TraceSummary,
+  type SpanNode,
+  type TempoClient,
+} from "./observability/tempo.js";
 
 import { type BuildServerOptions, type LwIdpServer, buildServer } from "./server.js";
 import { wireGracefulShutdown } from "./shutdown.js";
