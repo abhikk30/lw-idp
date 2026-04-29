@@ -135,20 +135,54 @@ kubectl -n jenkins create secret generic jenkins-dex \
   --from-literal=clientSecret="${JENKINS_CLIENT_SECRET}" \
   --dry-run=client -o yaml | kubectl apply -f -
 
-# gateway-svc-jenkins-api — placeholder Secret. Gateway-svc reads
-# JENKINS_API_USERNAME + JENKINS_API_TOKEN from this Secret; until the
-# user generates an API token via the Jenkins UI (one-time per fresh
-# cluster), the gateway returns 503 `jenkins_not_configured` for any
-# /api/v1/jenkins/* call. See docs/runbooks/jenkins-api-token.md for
-# the one-line `kubectl patch` command to populate it.
+# Jenkins service-account API token (P2.1.1.1).
+# Both `jenkins-svc-token` (in jenkins ns) and `gateway-svc-jenkins-api`
+# (in lw-idp ns) hold the SAME plaintext token. Jenkins's init.groovy
+# (configured via JCasC in infra/jenkins/values.yaml) reads JENKINS_SVC_TOKEN
+# at startup and seeds it as a fixed API token under user
+# `lw-idp-gateway-svc` via ApiTokenStore.addFixedNewToken (which hashes
+# internally). The gateway then Basic-auths to Jenkins's REST API as that
+# user with the plaintext token.
 #
-# Idempotent: re-runs preserve any user-set values rather than zeroing
-# them. We use a trick — only create the Secret if it doesn't exist
-# yet — so a real token, once set, survives subsequent bootstraps.
-if ! kubectl -n lw-idp get secret gateway-svc-jenkins-api >/dev/null 2>&1; then
-  kubectl -n lw-idp create secret generic gateway-svc-jenkins-api \
-    --from-literal=JENKINS_API_USERNAME="" \
-    --from-literal=JENKINS_API_TOKEN=""
+# Idempotent: reuses an existing token if both Secrets already match.
+# Generates a fresh random token only on first bootstrap of a cluster.
+# `|| true` keeps `set -euo pipefail` from tripping on first-bootstrap when
+# the Secret hasn't been created yet (kubectl exits 1 → pipefail propagates).
+EXISTING_USERNAME=$(kubectl -n lw-idp get secret gateway-svc-jenkins-api \
+  -o jsonpath='{.data.JENKINS_API_USERNAME}' 2>/dev/null | base64 -d || true)
+EXISTING_TOKEN=$(kubectl -n lw-idp get secret gateway-svc-jenkins-api \
+  -o jsonpath='{.data.JENKINS_API_TOKEN}' 2>/dev/null | base64 -d || true)
+TOKEN_CHANGED=false
+# Jenkins API token format: 2-char version prefix ("11") + 32 random hex chars
+# = 34 total. ApiTokenStore.addFixedNewToken rejects anything else with
+# IllegalArgumentException, so generate (and validate any reused value) in
+# exactly that shape.
+if [[ "${EXISTING_USERNAME}" == "lw-idp-gateway-svc" && ${#EXISTING_TOKEN} -eq 34 ]]; then
+  SVC_TOKEN="${EXISTING_TOKEN}"
+  echo "  jenkins svc token: reusing existing"
+else
+  SVC_TOKEN="11$(openssl rand -hex 16)"
+  TOKEN_CHANGED=true
+  echo "  jenkins svc token: generated new"
+fi
+kubectl -n jenkins create secret generic jenkins-svc-token \
+  --from-literal=JENKINS_SVC_TOKEN="${SVC_TOKEN}" \
+  --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n lw-idp create secret generic gateway-svc-jenkins-api \
+  --from-literal=JENKINS_API_USERNAME="lw-idp-gateway-svc" \
+  --from-literal=JENKINS_API_TOKEN="${SVC_TOKEN}" \
+  --dry-run=client -o yaml | kubectl apply -f -
+# When the token is freshly generated, restart Jenkins so init.groovy
+# re-runs with the populated env, AND restart gateway-svc so it picks up
+# the new token from its Secret. Skip on token reuse — pods already have
+# the right value.
+if [[ "${TOKEN_CHANGED}" == "true" ]]; then
+  if kubectl -n jenkins get statefulset jenkins >/dev/null 2>&1; then
+    kubectl -n jenkins rollout restart statefulset/jenkins || true
+  fi
+  if kubectl -n lw-idp get deploy gateway-svc >/dev/null 2>&1; then
+    kubectl -n lw-idp rollout restart deploy/gateway-svc || true
+  fi
 fi
 
 # gateway-svc-argocd-webhook + argocd-notifications-secret share the same

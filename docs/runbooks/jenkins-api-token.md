@@ -1,75 +1,81 @@
-# Runbook: configure Jenkins API token for the IDP gateway
+# Runbook: Jenkins service-account API token
 
-## When to run this
+## Status — automated as of P2.1.1.1
 
-After every fresh `cluster-reset.sh dev` (the Secret is preserved across
-re-runs of `cluster-bootstrap.sh dev`, so a one-time setup per cluster).
+The IDP gateway's Jenkins service-account API token is now generated and
+wired automatically by `scripts/cluster-bootstrap.sh`. **No manual steps
+are required after a fresh cluster reset.** This runbook is kept only as
+a rotation / debugging reference.
 
-## Why this is manual
+## How it works
 
-Jenkins's REST API requires Basic auth with username + API token. API
-tokens are minted *per Jenkins user* via the Web UI after a user logs in
-at least once — JCasC can't pre-generate them, and the OIDC plugin
-doesn't accept Bearer tokens for API calls.
+`scripts/cluster-bootstrap.sh` generates a 32-byte hex token (or reuses
+the existing one if both Secrets already agree). It writes the same
+plaintext value into two Secrets:
 
-Until this runbook is completed, the IDP's `/api/v1/jenkins/*` proxy
-endpoints return `503 jenkins_not_configured` and the Builds tab on
-the service detail page renders an "API token not yet configured" empty
-state with a link back to this doc.
+| Secret | Namespace | Key | Read by |
+|---|---|---|---|
+| `jenkins-svc-token` | `jenkins` | `JENKINS_SVC_TOKEN` | Jenkins controller (mounted via `containerEnv` in `infra/jenkins/values.yaml`) |
+| `gateway-svc-jenkins-api` | `lw-idp` | `JENKINS_API_USERNAME` + `JENKINS_API_TOKEN` | gateway-svc (mounted via `extraEnv` in `charts/gateway-svc/values.yaml`) |
 
-## Steps
+A Groovy init script in `controller.initScripts` of the Jenkins values
+runs at every Jenkins startup. It:
 
-1. **Log into Jenkins via the IDP's SSO** at <http://jenkins.lw-idp.local>.
-   First-login walks through Dex → GitHub OAuth.
+1. Reads `JENKINS_SVC_TOKEN` from env.
+2. Looks up (or creates) the Jenkins user `lw-idp-gateway-svc`.
+3. Computes the SHA-256 hex of the plaintext token (the format
+   `ApiTokenStore.addFixedNewToken` requires).
+4. Revokes any prior token under our marker name (`lw-idp-gateway`),
+   then seeds the fresh hash. Idempotent — same final state regardless
+   of pre-run state.
 
-2. **Generate an API token** for your user:
-   - Click your username in the top right → **Configure**.
-   - Scroll to **API Token** → **Add new Token** → give it a name like
-     `lw-idp-gateway`.
-   - Copy the token shown (you can't view it again later).
+The gateway then Basic-auths to Jenkins's REST API as
+`lw-idp-gateway-svc:<plaintext token>`. Jenkins's
+`BasicHeaderApiTokenAuthenticator` validates by hashing the supplied
+token and comparing to the stored hash — succeeds without involving
+the OIDC realm.
 
-3. **Patch the gateway's Secret** with your username + token. Username
-   is what Jenkins shows under "Full Name" / the `email` claim from
-   Dex (typically your GitHub-registered email):
+## When the token rotates
 
-   ```bash
-   USERNAME='<your-jenkins-user>'        # e.g. k30abhi@gmail.com
-   TOKEN='<paste the token here>'
+- **Fresh cluster (`cluster-reset.sh dev`):** PVC is wiped → Jenkins user
+  store is wiped → bootstrap regenerates token, both Secrets get the new
+  value, Jenkins+gateway pods restart. Zero-touch.
+- **Existing cluster, re-running bootstrap:** Both Secrets already have
+  matching values → bootstrap reuses the existing token → no pod
+  restarts.
 
-   kubectl -n lw-idp patch secret gateway-svc-jenkins-api --type=merge -p "$(cat <<EOF
-   {
-     "data": {
-       "JENKINS_API_USERNAME": "$(printf '%s' "$USERNAME" | base64)",
-       "JENKINS_API_TOKEN": "$(printf '%s' "$TOKEN" | base64)"
-     }
-   }
-   EOF
-   )"
-   ```
+## Manual rotation
 
-4. **Restart gateway-svc** so it picks up the new Secret values:
+If you ever need to force-rotate the token:
 
-   ```bash
-   kubectl -n lw-idp rollout restart deploy/gateway-svc
-   kubectl -n lw-idp rollout status deploy/gateway-svc --timeout=120s
-   ```
+```bash
+kubectl -n lw-idp delete secret gateway-svc-jenkins-api
+kubectl -n jenkins delete secret jenkins-svc-token
+bash scripts/cluster-bootstrap.sh dev
+```
 
-5. **Verify** by curling the proxy through the ingress with a seeded
-   session cookie, or just refresh the Builds tab in the IDP portal —
-   the empty state should disappear and the gateway should be reachable.
+The bootstrap script will detect the missing Secrets, generate a fresh
+token, write it into both, and rolling-restart Jenkins + gateway-svc.
 
-## What this gives the IDP
+## Troubleshooting
 
-After step 5, `/api/v1/jenkins/*` proxy routes work:
-- `GET /api/v1/jenkins/jobs/<slug>` — job metadata.
-- `GET /api/v1/jenkins/jobs/<slug>/builds` — recent build runs.
-- `POST /api/v1/jenkins/jobs/<slug>/build` — trigger a new build.
-- `GET /api/v1/jenkins/jobs/<slug>/builds/<n>/console` — log tail.
+**Builds tab shows "API token not yet configured"** (gateway returns
+`503 jenkins_not_configured`):
+- Check `kubectl -n lw-idp get secret gateway-svc-jenkins-api -o yaml`
+  — `JENKINS_API_USERNAME` and `JENKINS_API_TOKEN` must both be
+  non-empty (base64 of a non-empty value).
+- Check gateway env: `kubectl -n lw-idp exec deploy/gateway-svc -- env | grep JENKINS_API_`.
+- Restart gateway: `kubectl -n lw-idp rollout restart deploy/gateway-svc`.
 
-The Builds tab on each service detail page renders these.
+**Builds tab shows "Jenkins unreachable / unauthorized":**
+- Check init.groovy ran: `kubectl -n jenkins logs jenkins-0 -c jenkins | grep "lw-idp init"`.
+- If you see `JENKINS_SVC_TOKEN not set`, the env var isn't reaching
+  Jenkins. Verify `kubectl -n jenkins exec jenkins-0 -c jenkins -- env | grep JENKINS_SVC_TOKEN`.
+- If init.groovy ran but Jenkins still rejects, the SHA hashing might
+  have failed silently — check the controller log for stack traces.
 
 ## P1.9 follow-up
 
-Replace this manual setup with a Jenkins service-account user backed
-by a SealedSecret or External Secrets Operator pull from Vault. Token
-rotation handled by the operator instead of human ceremony.
+Replace the bootstrap-side `openssl rand` with a pull from External
+Secrets Operator → Vault. The init.groovy script doesn't change — it
+still reads `JENKINS_SVC_TOKEN` from env regardless of source.
