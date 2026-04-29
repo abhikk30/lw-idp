@@ -9,6 +9,7 @@ import { clustersPlugin } from "./http/clusters.js";
 import { importPlugin } from "./http/import.js";
 import { jenkinsPlugin } from "./http/jenkins.js";
 import { mePlugin } from "./http/me.js";
+import { observabilityPlugin } from "./http/observability.js";
 import { servicesPlugin } from "./http/services.js";
 import { teamsPlugin } from "./http/teams.js";
 import { argocdWebhookPlugin } from "./http/webhooks/argocd.js";
@@ -124,6 +125,15 @@ await startServer({
     await fastify.register(importPlugin, {
       argocdApiUrl: env.ARGOCD_API_URL,
       catalogClient: clients.catalog,
+    });
+    // Observability proxies: /api/v1/observability/{logs,traces}.
+    // Loki/Tempo are unauthenticated in-cluster; the Argo CD App lookup
+    // (used to resolve a slug → its targetNamespace) reuses the session's
+    // id_token as bearer.
+    await fastify.register(observabilityPlugin, {
+      lokiUrl: env.LOKI_URL,
+      tempoUrl: env.TEMPO_URL,
+      argocdApiUrl: env.ARGOCD_API_URL,
     });
     // Webhook receiver: POST /api/v1/webhooks/argocd — argocd-notifications-controller
     // posts here; we verify the bearer token and publish a CloudEvent to NATS.
