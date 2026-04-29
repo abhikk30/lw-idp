@@ -154,6 +154,33 @@ controller:
                       id: github-pat
                       secret: "${GITHUB_PAT}"
                       description: "GitHub PAT for idp-sample-nginx push-back (P2.1.2)"
+      jobs-config: |
+        jobs:
+          - script: >
+              pipelineJob('sample-nginx') {
+                description('CI for github.com/abhikk30/idp-sample-nginx — built end-to-end via lw-idp.')
+                logRotator { numToKeep(20) }
+                definition {
+                  cpsScm {
+                    scm {
+                      git {
+                        remote { url('https://github.com/abhikk30/idp-sample-nginx.git') }
+                        branches('*/main')
+                        extensions {
+                          cleanBeforeCheckout()
+                          messageExclusion {
+                            excludedMessage('^chore: bump image\\.tag.*\\[skip ci\\]$')
+                          }
+                        }
+                      }
+                      scriptPath('Jenkinsfile')
+                    }
+                  }
+                }
+                triggers {
+                  scm('H/2 * * * *')
+                }
+              }
 
   # Mount the Dex client secret as an env var; JCasC interpolates it via
   # ${OIDC_CLIENT_SECRET}. Sourced from the `jenkins-dex` Secret created by
