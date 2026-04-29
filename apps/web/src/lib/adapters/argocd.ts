@@ -4,9 +4,26 @@ import type {
   ArgoCdAdapter,
   ArgoHealthStatus,
   ArgoOperationPhase,
+  ArgoReplicaCounts,
   ArgoSyncOptions,
   ArgoSyncStatus,
 } from "@lw-idp/contracts";
+
+interface ResourceTreeNode {
+  kind?: string;
+  health?: { status?: string };
+}
+interface ResourceTreeResponse {
+  nodes?: ResourceTreeNode[];
+}
+
+function countPods(tree: ResourceTreeResponse): ArgoReplicaCounts {
+  const pods = (tree.nodes ?? []).filter((n) => n.kind === "Pod");
+  return {
+    desired: pods.length,
+    ready: pods.filter((n) => n.health?.status === "Healthy").length,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Upstream Argo CD response shapes (minimal — only fields we read)
@@ -169,6 +186,13 @@ export function createArgoCdAdapter(
     async getApplication(name: string): Promise<ArgoApplication> {
       const data = await get<UpstreamArgoApp>(`/argocd/applications/${encodeURIComponent(name)}`);
       return mapApplication(data);
+    },
+
+    async getReplicaCounts(name: string): Promise<ArgoReplicaCounts> {
+      const tree = await get<ResourceTreeResponse>(
+        `/argocd/applications/${encodeURIComponent(name)}/resource-tree`,
+      );
+      return countPods(tree);
     },
 
     async sync(name: string, opts?: ArgoSyncOptions): Promise<void> {

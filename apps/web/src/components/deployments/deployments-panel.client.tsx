@@ -148,6 +148,16 @@ export function DeploymentsPanel({
 
   const app = application ?? initialApplication;
 
+  // Replicas live in the resource-tree response, not the Application itself.
+  // Fetched separately so the listApplications path (services-list pill) stays
+  // a single API call. WS invalidations on `["applications"]` also hit this
+  // by prefix match.
+  const { data: replicas } = useQuery({
+    queryKey: ["applications", serviceSlug, "replicas"],
+    queryFn: () => adapter.getReplicaCounts(serviceSlug),
+    refetchInterval: 30_000,
+  });
+
   const syncMutation = useMutation({
     mutationFn: () => adapter.sync(serviceSlug),
     onMutate: () => {
@@ -177,10 +187,13 @@ export function DeploymentsPanel({
     },
   });
 
-  const replicasLabel =
-    app.replicas.ready === 0 && app.replicas.desired === 0
-      ? "—"
-      : `${app.replicas.ready} / ${app.replicas.desired}`;
+  // Prefer the resource-tree-derived counts when available; fall back to the
+  // Application's static `replicas` field (which is currently always 0/0 from
+  // the basic mapping but will populate once the upstream Application response
+  // carries Pod summary data in a future Argo CD version).
+  const ready = replicas?.ready ?? app.replicas.ready;
+  const desired = replicas?.desired ?? app.replicas.desired;
+  const replicasLabel = ready === 0 && desired === 0 ? "—" : `${ready} / ${desired}`;
 
   return (
     <Card>

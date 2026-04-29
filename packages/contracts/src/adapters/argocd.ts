@@ -58,11 +58,26 @@ export interface ArgoApplicationCreateSpec {
   destinationNamespace: string;
 }
 
+/** Computed replica counts derived from the Argo CD resource tree. */
+export interface ArgoReplicaCounts {
+  /** Number of Pod nodes whose health.status === "Healthy". */
+  ready: number;
+  /** Total Pod nodes (any health status). */
+  desired: number;
+}
+
 export interface ArgoCdAdapter {
   /** List all Argo CD Applications labeled `app.kubernetes.io/part-of: lw-idp`. */
   listApplications(): Promise<ArgoApplication[]>;
   /** Get one Application by name. Throws if not found. */
   getApplication(name: string): Promise<ArgoApplication>;
+  /**
+   * Aggregate Pod-level replica counts from the application's resource tree.
+   * Used by the deployments panel for the "Ready X / Desired Y" display.
+   * Cheap to compute (one API call); kept as a separate method so callers
+   * can opt out (e.g. the services-list pill which only needs sync/health).
+   */
+  getReplicaCounts(name: string): Promise<ArgoReplicaCounts>;
   /**
    * Trigger a sync. Hard Sync is `{ prune: true, force: true }`. Returns when
    * the upstream operation has been *accepted*, not when it completes.

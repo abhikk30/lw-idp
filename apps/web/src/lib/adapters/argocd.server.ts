@@ -4,6 +4,7 @@ import type {
   ArgoApplication,
   ArgoApplicationCreateSpec,
   ArgoCdAdapter,
+  ArgoReplicaCounts,
   ArgoSyncOptions,
 } from "@lw-idp/contracts";
 import { headers } from "next/headers";
@@ -32,6 +33,14 @@ interface UpstreamArgoApp {
 
 interface UpstreamArgoAppList {
   items?: UpstreamArgoApp[];
+}
+
+interface ResourceTreeNode {
+  kind?: string;
+  health?: { status?: string };
+}
+interface ResourceTreeResponse {
+  nodes?: ResourceTreeNode[];
 }
 
 const INTERNAL_BASE_URL = (
@@ -108,6 +117,16 @@ export async function createServerArgoCdAdapter(): Promise<ArgoCdAdapter> {
         `/api/v1/argocd/applications/${encodeURIComponent(name)}`,
       );
       return mapApplication(data);
+    },
+    async getReplicaCounts(name: string): Promise<ArgoReplicaCounts> {
+      const tree = await getJson<ResourceTreeResponse>(
+        `/api/v1/argocd/applications/${encodeURIComponent(name)}/resource-tree`,
+      );
+      const pods = (tree.nodes ?? []).filter((n) => n.kind === "Pod");
+      return {
+        desired: pods.length,
+        ready: pods.filter((n) => n.health?.status === "Healthy").length,
+      };
     },
     async sync(name: string, opts?: ArgoSyncOptions): Promise<void> {
       const res = await fetch(
