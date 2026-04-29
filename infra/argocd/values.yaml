@@ -32,13 +32,23 @@ configs:
 
   rbac:
     # Single role for all authenticated users in P2.0.
+    # Two roles in P2.0.5:
+    #   lw-idp-user   — read + sync (every authenticated user gets this)
+    #   lw-idp-author — create / update / delete Applications (every
+    #                   authenticated user gets this in dev; P1.9 will
+    #                   restrict to a separate Dex group like
+    #                   `lw-idp:authors` derived from a GitHub team).
     # Team-scoped policy is deferred to P1.9 / P2.2.
     policy.default: ""
     policy.csv: |
       p, role:lw-idp-user, applications, get, */*, allow
       p, role:lw-idp-user, applications, sync, */*, allow
       p, role:lw-idp-user, applications, action/*, */*, allow
+      p, role:lw-idp-author, applications, create, */*, allow
+      p, role:lw-idp-author, applications, update, */*, allow
+      p, role:lw-idp-author, applications, delete, */*, allow
       g, "lw-idp:authenticated", role:lw-idp-user
+      g, "lw-idp:authenticated", role:lw-idp-author
 
 server:
   ingress:
