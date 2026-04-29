@@ -10,6 +10,7 @@ import { importPlugin } from "./http/import.js";
 import { jenkinsPlugin } from "./http/jenkins.js";
 import { mePlugin } from "./http/me.js";
 import { servicesPlugin } from "./http/services.js";
+import { teamsPlugin } from "./http/teams.js";
 import { argocdWebhookPlugin } from "./http/webhooks/argocd.js";
 import { idempotencyPlugin } from "./middleware/idempotency.js";
 import { rateLimitPlugin } from "./middleware/rate-limit.js";
@@ -106,6 +107,7 @@ await startServer({
 
     // API routes
     await fastify.register(mePlugin, { identityClient: clients.identity });
+    await fastify.register(teamsPlugin, { identityClient: clients.identity });
     await fastify.register(servicesPlugin, { catalogClient: clients.catalog });
     await fastify.register(clustersPlugin, { clusterClient: clients.cluster });
     // Argo CD proxy (forwards session.idToken as bearer; Dex trustedPeers
