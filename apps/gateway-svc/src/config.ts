@@ -53,6 +53,15 @@ const EnvSchema = z.object({
   // Webhook receiver token (used by D3). Declared here so the env schema is
   // stable; unused in C2.
   ARGOCD_WEBHOOK_TOKEN: z.string().optional(),
+
+  // Jenkins (P2.1.1). The gateway proxies /api/v1/jenkins/* to this URL
+  // using Basic auth with a service-account API token. Empty username +
+  // token means "Jenkins integration not configured" — gateway returns
+  // 503 jenkins_not_configured rather than guessing or crashing.
+  // See docs/runbooks/jenkins-api-token.md for the one-time setup step.
+  JENKINS_API_URL: z.string().default("http://jenkins.jenkins.svc:8080"),
+  JENKINS_API_USERNAME: z.string().default(""),
+  JENKINS_API_TOKEN: z.string().default(""),
 });
 
 export type GatewayEnv = z.infer<typeof EnvSchema>;

@@ -7,6 +7,7 @@ import { argocdPlugin } from "./http/argocd.js";
 import { authPlugin } from "./http/auth.js";
 import { clustersPlugin } from "./http/clusters.js";
 import { importPlugin } from "./http/import.js";
+import { jenkinsPlugin } from "./http/jenkins.js";
 import { mePlugin } from "./http/me.js";
 import { servicesPlugin } from "./http/services.js";
 import { argocdWebhookPlugin } from "./http/webhooks/argocd.js";
@@ -110,6 +111,13 @@ await startServer({
     // Argo CD proxy (forwards session.idToken as bearer; Dex trustedPeers
     // makes the same id_token valid for both gateway and argocd audiences).
     await fastify.register(argocdPlugin, { argocdApiUrl: env.ARGOCD_API_URL });
+    // Jenkins proxy (Basic auth with service-account API token held in a Secret;
+    // returns 503 jenkins_not_configured when credentials are empty).
+    await fastify.register(jenkinsPlugin, {
+      jenkinsApiUrl: env.JENKINS_API_URL,
+      jenkinsUsername: env.JENKINS_API_USERNAME,
+      jenkinsApiToken: env.JENKINS_API_TOKEN,
+    });
     // Import-candidates aggregator: Argo CD apps not yet in the catalog.
     await fastify.register(importPlugin, {
       argocdApiUrl: env.ARGOCD_API_URL,

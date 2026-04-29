@@ -92,6 +92,23 @@ extraEnv:
       secretKeyRef:
         name: gateway-svc-argocd-webhook
         key: ARGOCD_WEBHOOK_TOKEN
+  # Jenkins API (P2.1.1). Username + API token come from a Secret seeded
+  # by cluster-bootstrap.sh. Empty values mean "not configured yet" —
+  # the gateway returns 503 jenkins_not_configured for /api/v1/jenkins/*
+  # until the user runs the one-time runbook step to populate the
+  # Secret with a real Jenkins API token.
+  - name: JENKINS_API_URL
+    value: "http://jenkins.jenkins.svc:8080"
+  - name: JENKINS_API_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: gateway-svc-jenkins-api
+        key: JENKINS_API_USERNAME
+  - name: JENKINS_API_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: gateway-svc-jenkins-api
+        key: JENKINS_API_TOKEN
 
 monitoring:
   enabled: true
