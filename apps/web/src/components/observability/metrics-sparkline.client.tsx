@@ -54,15 +54,24 @@ export function MetricsSparkline({
                 <Line
                   type="monotone"
                   dataKey="value"
-                  stroke="hsl(var(--primary))"
-                  strokeWidth={1.5}
+                  stroke="var(--color-primary)"
+                  strokeWidth={2}
                   dot={false}
                   isAnimationActive={false}
                 />
                 <Tooltip
                   formatter={(v) => formatValue(panel, Number(v))}
                   labelFormatter={(l) => new Date(String(l)).toLocaleTimeString()}
-                  contentStyle={{ fontSize: "0.75rem", padding: "0.25rem 0.5rem" }}
+                  contentStyle={{
+                    fontSize: "0.75rem",
+                    padding: "0.25rem 0.5rem",
+                    background: "var(--color-popover)",
+                    color: "var(--color-popover-foreground)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: "0.375rem",
+                  }}
+                  labelStyle={{ color: "var(--color-popover-foreground)" }}
+                  itemStyle={{ color: "var(--color-popover-foreground)" }}
                 />
               </LineChart>
             </ResponsiveContainer>
