@@ -1,5 +1,6 @@
 import { createOidcVerifier, createRedisSessionStore } from "@lw-idp/auth";
 import { createRedis, startServer } from "@lw-idp/service-kit";
+import { connect as natsConnect } from "nats";
 import { createUpstreamClients } from "./clients/index.js";
 import { loadConfig } from "./config.js";
 import { argocdPlugin } from "./http/argocd.js";
@@ -7,12 +8,19 @@ import { authPlugin } from "./http/auth.js";
 import { clustersPlugin } from "./http/clusters.js";
 import { mePlugin } from "./http/me.js";
 import { servicesPlugin } from "./http/services.js";
+import { argocdWebhookPlugin } from "./http/webhooks/argocd.js";
 import { idempotencyPlugin } from "./middleware/idempotency.js";
 import { rateLimitPlugin } from "./middleware/rate-limit.js";
 import { sessionPlugin } from "./middleware/session.js";
 import { createRedisStateStore } from "./services/state-store.js";
 
 const env = loadConfig();
+
+// NATS connection for publishing deploy events (D3: argocd webhook receiver).
+// Lazy-connect: natsConnect returns once the TCP connection is established.
+const nc = await natsConnect({
+  servers: env.NATS_URL,
+});
 
 // Single shared Redis client for the entire process. Every consumer below
 // (session store, state store, rate-limit plugin, idempotency plugin) receives
@@ -38,6 +46,13 @@ await startServer({
   name: "gateway-svc",
   port: env.PORT,
   onShutdown: async () => {
+    // Drain NATS (flush any buffered publishes) before closing other resources.
+    try {
+      await nc.drain();
+    } catch {
+      // ignore — already closed or never connected cleanly
+    }
+
     // The stores hold references to the shared `redis` client but do NOT
     // own its lifecycle (see RedisSessionStoreOptions / RedisStateStoreOptions).
     // Closing them is a no-op here — we quit the single shared client exactly once.
@@ -45,8 +60,13 @@ await startServer({
     await redis.quit();
   },
   register: async (fastify) => {
-    // Session middleware (cookie parse + session lookup) must be first
-    await fastify.register(sessionPlugin, { store: sessionStore });
+    // Session middleware (cookie parse + session lookup) must be first.
+    // The webhook path is listed in publicPrefixes so that argocd-notifications
+    // requests (which carry no session cookie) bypass the 401 guard.
+    await fastify.register(sessionPlugin, {
+      store: sessionStore,
+      publicPrefixes: ["/healthz", "/readyz", "/metrics", "/auth/", "/api/v1/webhooks/argocd"],
+    });
 
     // Rate limiting (per-user or per-IP, backed by Dragonfly)
     await fastify.register(rateLimitPlugin, {
@@ -89,5 +109,11 @@ await startServer({
     // Argo CD proxy (forwards session.idToken as bearer; Dex trustedPeers
     // makes the same id_token valid for both gateway and argocd audiences).
     await fastify.register(argocdPlugin, { argocdApiUrl: env.ARGOCD_API_URL });
+    // Webhook receiver: POST /api/v1/webhooks/argocd — argocd-notifications-controller
+    // posts here; we verify the bearer token and publish a CloudEvent to NATS.
+    await fastify.register(argocdWebhookPlugin, {
+      webhookToken: env.ARGOCD_WEBHOOK_TOKEN ?? "",
+      nats: nc,
+    });
   },
 });
