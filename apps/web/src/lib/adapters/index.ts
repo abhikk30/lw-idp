@@ -1,6 +1,7 @@
 import "server-only";
 
-import type { DeploymentAdapter, PipelineAdapter } from "@lw-idp/contracts";
+import type { ArgoCdAdapter, DeploymentAdapter, PipelineAdapter } from "@lw-idp/contracts";
+import { createArgoCdAdapter } from "./argocd.js";
 import { mockDeploymentAdapter } from "./deployments.mock.js";
 import { mockPipelineAdapter } from "./pipelines.mock.js";
 
@@ -17,4 +18,13 @@ export function getDeploymentAdapter(): DeploymentAdapter {
 
 export function getPipelineAdapter(): PipelineAdapter {
   return mockPipelineAdapter;
+}
+
+/**
+ * Returns the real Argo CD adapter backed by the gateway proxy routes.
+ * Always returns the live implementation — no mock variant (Argo CD is
+ * always present in any running cluster).
+ */
+export function getArgoCdAdapter(): ArgoCdAdapter {
+  return createArgoCdAdapter();
 }
