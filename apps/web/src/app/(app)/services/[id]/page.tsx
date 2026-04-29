@@ -8,6 +8,7 @@ import {
 } from "@lw-idp/ui/components/card";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
+import { PodStatusStrip } from "../../../../components/observability/pod-status-strip.client.js";
 import { TeamName } from "../../../../components/team-name.client.js";
 import { createServerClient } from "../../../../lib/api/server.js";
 
@@ -26,55 +27,58 @@ export default async function ServiceOverviewPage({ params }: PageProps): Promis
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <Card>
-        <CardHeader>
-          <CardTitle>Overview</CardTitle>
-          <CardDescription>
-            {data.description ?? <span className="italic">No description.</span>}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3">
-          <Field label="Type">
-            <Badge variant="secondary">{data.type ?? "service"}</Badge>
-          </Field>
-          <Field label="Lifecycle">
-            <Badge variant={data.lifecycle === "production" ? "default" : "outline"}>
-              {data.lifecycle ?? "experimental"}
-            </Badge>
-          </Field>
-          <Field label="Owner team">
-            {data.ownerTeamId ? (
-              <TeamName id={data.ownerTeamId} />
-            ) : (
-              <span className="text-muted-foreground text-sm italic">unowned</span>
-            )}
-          </Field>
-          {data.repoUrl ? (
-            <Field label="Repository">
-              <a
-                className="text-primary text-sm hover:underline"
-                href={data.repoUrl}
-                target="_blank"
-                rel="noreferrer"
-              >
-                {data.repoUrl}
-              </a>
+    <div className="flex flex-col gap-4">
+      <PodStatusStrip serviceSlug={data.slug} />
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Overview</CardTitle>
+            <CardDescription>
+              {data.description ?? <span className="italic">No description.</span>}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            <Field label="Type">
+              <Badge variant="secondary">{data.type ?? "service"}</Badge>
             </Field>
-          ) : null}
-          {(data.tags?.length ?? 0) > 0 ? (
-            <Field label="Tags">
-              <div className="flex flex-wrap gap-1">
-                {(data.tags ?? []).map((t) => (
-                  <Badge key={t} variant="outline">
-                    {t}
-                  </Badge>
-                ))}
-              </div>
+            <Field label="Lifecycle">
+              <Badge variant={data.lifecycle === "production" ? "default" : "outline"}>
+                {data.lifecycle ?? "experimental"}
+              </Badge>
             </Field>
-          ) : null}
-        </CardContent>
-      </Card>
+            <Field label="Owner team">
+              {data.ownerTeamId ? (
+                <TeamName id={data.ownerTeamId} />
+              ) : (
+                <span className="text-muted-foreground text-sm italic">unowned</span>
+              )}
+            </Field>
+            {data.repoUrl ? (
+              <Field label="Repository">
+                <a
+                  className="text-primary text-sm hover:underline"
+                  href={data.repoUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {data.repoUrl}
+                </a>
+              </Field>
+            ) : null}
+            {(data.tags?.length ?? 0) > 0 ? (
+              <Field label="Tags">
+                <div className="flex flex-wrap gap-1">
+                  {(data.tags ?? []).map((t) => (
+                    <Badge key={t} variant="outline">
+                      {t}
+                    </Badge>
+                  ))}
+                </div>
+              </Field>
+            ) : null}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
