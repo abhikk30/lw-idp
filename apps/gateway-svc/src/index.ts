@@ -133,6 +133,7 @@ await startServer({
     await fastify.register(observabilityPlugin, {
       lokiUrl: env.LOKI_URL,
       tempoUrl: env.TEMPO_URL,
+      promUrl: env.PROM_URL,
       argocdApiUrl: env.ARGOCD_API_URL,
     });
     // Webhook receiver: POST /api/v1/webhooks/argocd — argocd-notifications-controller

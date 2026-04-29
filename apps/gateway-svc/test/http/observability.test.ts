@@ -66,11 +66,13 @@ describe("gateway /api/v1/observability/*", () => {
   let argo: StubServer;
   let loki: StubServer;
   let tempo: StubServer;
+  let prom: StubServer;
 
   beforeAll(async () => {
     argo = await startStub();
     loki = await startStub();
     tempo = await startStub();
+    prom = await startStub();
 
     sessionStore = memorySession();
     await sessionStore.set(
@@ -94,6 +96,7 @@ describe("gateway /api/v1/observability/*", () => {
         await fastify.register(observabilityPlugin, {
           lokiUrl: loki.baseUrl,
           tempoUrl: tempo.baseUrl,
+          promUrl: prom.baseUrl,
           argocdApiUrl: argo.baseUrl,
         });
       },
@@ -110,6 +113,7 @@ describe("gateway /api/v1/observability/*", () => {
     await new Promise<void>((r) => argo?.server.close(() => r()));
     await new Promise<void>((r) => loki?.server.close(() => r()));
     await new Promise<void>((r) => tempo?.server.close(() => r()));
+    await new Promise<void>((r) => prom?.server.close(() => r()));
   });
 
   // ---- Logs ----
@@ -305,5 +309,113 @@ describe("gateway /api/v1/observability/*", () => {
     expect(body.trace_id).toBe("abc123");
     expect(body.spans).toHaveLength(1);
     expect(body.spans[0]?.span_id).toBe("s1");
+  });
+
+  // ---- Metrics ----
+
+  describe("GET /api/v1/observability/metrics", () => {
+    function okPromBody(): unknown {
+      return {
+        status: "success",
+        data: {
+          resultType: "matrix",
+          result: [
+            {
+              metric: {},
+              values: [
+                [1714345200, "1.5"],
+                [1714345215, "2.0"],
+              ],
+            },
+          ],
+        },
+      };
+    }
+
+    it("returns 401 without a session", async () => {
+      const res = await fetch(
+        `${gatewayUrl}/api/v1/observability/metrics?service=foo&panel=req_rate`,
+      );
+      expect(res.status).toBe(401);
+    });
+
+    it("returns 400 when service param is missing", async () => {
+      const res = await fetch(`${gatewayUrl}/api/v1/observability/metrics?panel=req_rate`, {
+        headers: { cookie: "lw-sid=sess_obs_ok" },
+      });
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { code: string };
+      expect(body.code).toBe("bad_request");
+    });
+
+    it("returns 400 when panel is not one of the allowed values", async () => {
+      argo.setHandler(() => ({
+        status: 200,
+        body: { spec: { destination: { namespace: "sample-nginx" } } },
+      }));
+      const res = await fetch(
+        `${gatewayUrl}/api/v1/observability/metrics?service=sample-nginx&panel=bogus`,
+        { headers: { cookie: "lw-sid=sess_obs_ok" } },
+      );
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { code: string };
+      expect(body.code).toBe("bad_request");
+    });
+
+    it("returns 404 when Argo CD App does not exist", async () => {
+      argo.setHandler(() => ({ status: 404, body: {} }));
+      const res = await fetch(
+        `${gatewayUrl}/api/v1/observability/metrics?service=ghost&panel=req_rate`,
+        { headers: { cookie: "lw-sid=sess_obs_ok" } },
+      );
+      expect(res.status).toBe(404);
+      const body = (await res.json()) as { code: string };
+      expect(body.code).toBe("not_found");
+    });
+
+    for (const panel of ["req_rate", "error_rate", "p95_latency"] as const) {
+      it(`returns 200 and queries Prom with namespace from Argo CD (${panel})`, async () => {
+        argo.setHandler(() => ({
+          status: 200,
+          body: { spec: { destination: { namespace: "sample-nginx" } } },
+        }));
+        prom.setHandler(() => ({ status: 200, body: okPromBody() }));
+
+        const before = prom.capturedUrls.length;
+        const res = await fetch(
+          `${gatewayUrl}/api/v1/observability/metrics?service=sample-nginx&panel=${panel}`,
+          { headers: { cookie: "lw-sid=sess_obs_ok" } },
+        );
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as {
+          panel: string;
+          unit: string;
+          points: { ts: string; value: number }[];
+        };
+        expect(body.panel).toBe(panel);
+        expect(Array.isArray(body.points)).toBe(true);
+        expect(body.points).toHaveLength(2);
+
+        const promUrl = prom.capturedUrls[before];
+        expect(promUrl).toBeDefined();
+        const decoded = decodeURIComponent((promUrl ?? "").replace(/\+/g, " "));
+        expect(decoded).toContain('namespace="sample-nginx"');
+      });
+    }
+
+    it("returns 502 when Prom returns 5xx", async () => {
+      argo.setHandler(() => ({
+        status: 200,
+        body: { spec: { destination: { namespace: "sample-nginx" } } },
+      }));
+      prom.setHandler(() => ({ status: 500, body: { error: "boom" } }));
+      const res = await fetch(
+        `${gatewayUrl}/api/v1/observability/metrics?service=sample-nginx&panel=req_rate`,
+        { headers: { cookie: "lw-sid=sess_obs_ok" } },
+      );
+      expect(res.status).toBe(502);
+      const body = (await res.json()) as { code: string };
+      expect(body.code).toBe("prom_unreachable");
+    });
   });
 });

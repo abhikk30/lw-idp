@@ -1,10 +1,11 @@
-import { createLokiClient, createTempoClient } from "@lw-idp/service-kit";
+import { createLokiClient, createPromClient, createTempoClient } from "@lw-idp/service-kit";
 import type { FastifyPluginAsync } from "fastify";
 import fp from "fastify-plugin";
 
 export interface ObservabilityPluginOptions {
   lokiUrl: string;
   tempoUrl: string;
+  promUrl: string;
   /**
    * Argo CD API base URL. The plugin reads `.spec.destination.namespace` from
    * the Argo CD Application CR named after the service slug to determine the
@@ -14,9 +15,18 @@ export interface ObservabilityPluginOptions {
   argocdApiUrl: string;
 }
 
+const PROMQL: Record<string, (ns: string) => string> = {
+  req_rate: (ns) => `sum(rate(http_server_duration_seconds_count{namespace="${ns}"}[1m]))`,
+  error_rate: (ns) =>
+    `sum(rate(http_server_duration_seconds_count{namespace="${ns}",http_status_code=~"5.."}[1m])) / clamp_min(sum(rate(http_server_duration_seconds_count{namespace="${ns}"}[1m])), 1e-9)`,
+  p95_latency: (ns) =>
+    `histogram_quantile(0.95, sum(rate(http_server_duration_seconds_bucket{namespace="${ns}"}[1m])) by (le))`,
+};
+
 const obsPluginFn: FastifyPluginAsync<ObservabilityPluginOptions> = async (fastify, opts) => {
   const loki = createLokiClient({ baseUrl: opts.lokiUrl });
   const tempo = createTempoClient({ baseUrl: opts.tempoUrl });
+  const prom = createPromClient({ baseUrl: opts.promUrl });
   const argoBase = opts.argocdApiUrl.replace(/\/+$/, "");
 
   // Resolve a service slug → its targetNamespace by reading the Argo CD
@@ -124,6 +134,55 @@ const obsPluginFn: FastifyPluginAsync<ObservabilityPluginOptions> = async (fasti
       }
     },
   );
+
+  fastify.get("/api/v1/observability/metrics", async (req, reply) => {
+    if (!req.session) {
+      return reply.code(401).send({ code: "unauthorized", message: "auth required" });
+    }
+    const q = req.query as Record<string, string | undefined>;
+    const slug = q.service;
+    if (!slug) {
+      return reply.code(400).send({ code: "bad_request", message: "service required" });
+    }
+    const panel = q.panel ?? "";
+    if (!(panel in PROMQL)) {
+      return reply
+        .code(400)
+        .send({ code: "bad_request", message: "panel must be req_rate|error_rate|p95_latency" });
+    }
+
+    let ns: string | null;
+    try {
+      ns = await resolveNamespace(slug, req.session.idToken ?? "");
+    } catch (err) {
+      fastify.log.error({ err }, "argocd app lookup failed");
+      return reply.code(502).send({ code: "argocd_unreachable", message: "argocd unreachable" });
+    }
+    if (ns === null) {
+      return reply.code(404).send({ code: "not_found", message: "service not found in argocd" });
+    }
+
+    const sinceMs = parseSinceMs(q.since ?? "1h");
+    const stepRaw = q.step ?? "15s";
+    const stepSec = Math.max(1, Number(stepRaw.replace(/s$/, "")));
+    const now = Date.now();
+
+    try {
+      const result = await prom.queryRange({
+        query: PROMQL[panel](ns),
+        startMs: now - sinceMs,
+        endMs: now,
+        stepSec,
+      });
+      const unit = panel === "req_rate" ? "req/s" : panel === "error_rate" ? "ratio" : "ms";
+      return reply.send({ panel, unit, points: result.points });
+    } catch (err) {
+      fastify.log.error({ err }, "prom query failed");
+      return reply
+        .code(502)
+        .send({ code: "prom_unreachable", message: "metrics backend unreachable" });
+    }
+  });
 };
 
 function parseSinceMs(since: string): number {
