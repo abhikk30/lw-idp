@@ -50,6 +50,10 @@ Every check-in is gated by Lefthook (Biome + Commitlint) locally and by the `ci`
 | `docs/superpowers/specs/` | design specs |
 | `docs/superpowers/plans/` | implementation plans |
 
+## Onboarded apps
+
+- **`sample-nginx`** — the IDP's first dogfooded user app. Source: <https://github.com/abhikk30/idp-sample-nginx>. Page: <http://sample.lw-idp.local/>. Onboarding runbook: `docs/runbooks/sample-nginx-onboarding.md`.
+
 ## Docs
 
 - Spec: `docs/superpowers/specs/2026-04-20-lw-idp-foundation-design.md`
