@@ -2,6 +2,7 @@ import { createOidcVerifier, createRedisSessionStore } from "@lw-idp/auth";
 import { createRedis, startServer } from "@lw-idp/service-kit";
 import { connect as natsConnect } from "nats";
 import { createUpstreamClients } from "./clients/index.js";
+import { createK8sClient } from "./clients/k8s.js";
 import { loadConfig } from "./config.js";
 import { argocdPlugin } from "./http/argocd.js";
 import { authPlugin } from "./http/auth.js";
@@ -9,6 +10,7 @@ import { clustersPlugin } from "./http/clusters.js";
 import { importPlugin } from "./http/import.js";
 import { jenkinsPlugin } from "./http/jenkins.js";
 import { mePlugin } from "./http/me.js";
+import { observabilityPlugin } from "./http/observability.js";
 import { servicesPlugin } from "./http/services.js";
 import { teamsPlugin } from "./http/teams.js";
 import { argocdWebhookPlugin } from "./http/webhooks/argocd.js";
@@ -44,6 +46,10 @@ const clients = createUpstreamClients({
   catalogUrl: env.CATALOG_SVC_URL,
   clusterUrl: env.CLUSTER_SVC_URL,
 });
+
+// In-cluster Kubernetes API client for /api/v1/observability/pods. Uses the
+// projected ServiceAccount token + cluster CA from the kubelet-mounted secret.
+const k8sClient = createK8sClient();
 
 await startServer({
   name: "gateway-svc",
@@ -124,6 +130,17 @@ await startServer({
     await fastify.register(importPlugin, {
       argocdApiUrl: env.ARGOCD_API_URL,
       catalogClient: clients.catalog,
+    });
+    // Observability proxies: /api/v1/observability/{logs,traces}.
+    // Loki/Tempo are unauthenticated in-cluster; the Argo CD App lookup
+    // (used to resolve a slug → its targetNamespace) reuses the session's
+    // id_token as bearer.
+    await fastify.register(observabilityPlugin, {
+      lokiUrl: env.LOKI_URL,
+      tempoUrl: env.TEMPO_URL,
+      promUrl: env.PROM_URL,
+      argocdApiUrl: env.ARGOCD_API_URL,
+      k8sClient,
     });
     // Webhook receiver: POST /api/v1/webhooks/argocd — argocd-notifications-controller
     // posts here; we verify the bearer token and publish a CloudEvent to NATS.

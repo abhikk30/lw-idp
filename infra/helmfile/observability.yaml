@@ -13,6 +13,15 @@ releases:
     values:
       - ../observability/loki.yaml
 
+  - name: promtail
+    namespace: observability
+    chart: grafana/promtail
+    version: 6.16.6
+    values:
+      - ../observability/promtail.yaml
+    needs:
+      - observability/loki
+
   - name: tempo
     namespace: observability
     chart: grafana/tempo

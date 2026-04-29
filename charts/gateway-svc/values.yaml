@@ -109,6 +109,15 @@ extraEnv:
       secretKeyRef:
         name: gateway-svc-jenkins-api
         key: JENKINS_API_TOKEN
+  # Observability stack URLs (P2.2). In-cluster DNS for Loki/Tempo/Prometheus
+  # deployed under the `observability` namespace. PROM_URL is consumed by C2
+  # (metrics proxy) — defined here now to avoid churn in C2.
+  - name: LOKI_URL
+    value: "http://loki.observability.svc.cluster.local:3100"
+  - name: TEMPO_URL
+    value: "http://tempo.observability.svc.cluster.local:3200"
+  - name: PROM_URL
+    value: "http://kube-prometheus-stack-prometheus.observability.svc.cluster.local:9090"
 
 monitoring:
   enabled: true

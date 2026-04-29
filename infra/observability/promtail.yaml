@@ -1,0 +1,24 @@
+# Grafana Promtail — daemonset that scrapes all container logs from
+# /var/log/pods on each node and ships to Loki. Standard kind-friendly
+# config; pod metadata becomes Loki stream labels (namespace, pod,
+# container, node, app_kubernetes_io_name).
+config:
+  clients:
+    - url: http://loki.observability.svc.cluster.local:3100/loki/api/v1/push
+
+# Tiny resource asks — single-node kind dev cluster.
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+serviceMonitor:
+  enabled: false   # keep cardinality low in dev; re-enable in prod profile
+
+# DaemonSet on all schedulable nodes (incl. control-plane in kind).
+tolerations:
+  - effect: NoSchedule
+    operator: Exists

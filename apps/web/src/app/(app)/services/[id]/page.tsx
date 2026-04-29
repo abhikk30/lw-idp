@@ -8,6 +8,10 @@ import {
 } from "@lw-idp/ui/components/card";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
+import { LogsPanel } from "../../../../components/observability/logs-panel.client.js";
+import { MetricsSparkline } from "../../../../components/observability/metrics-sparkline.client.js";
+import { PodStatusStrip } from "../../../../components/observability/pod-status-strip.client.js";
+import { TracesPanel } from "../../../../components/observability/traces-panel.client.js";
 import { TeamName } from "../../../../components/team-name.client.js";
 import { createServerClient } from "../../../../lib/api/server.js";
 
@@ -26,55 +30,67 @@ export default async function ServiceOverviewPage({ params }: PageProps): Promis
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <Card>
-        <CardHeader>
-          <CardTitle>Overview</CardTitle>
-          <CardDescription>
-            {data.description ?? <span className="italic">No description.</span>}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3">
-          <Field label="Type">
-            <Badge variant="secondary">{data.type ?? "service"}</Badge>
-          </Field>
-          <Field label="Lifecycle">
-            <Badge variant={data.lifecycle === "production" ? "default" : "outline"}>
-              {data.lifecycle ?? "experimental"}
-            </Badge>
-          </Field>
-          <Field label="Owner team">
-            {data.ownerTeamId ? (
-              <TeamName id={data.ownerTeamId} />
-            ) : (
-              <span className="text-muted-foreground text-sm italic">unowned</span>
-            )}
-          </Field>
-          {data.repoUrl ? (
-            <Field label="Repository">
-              <a
-                className="text-primary text-sm hover:underline"
-                href={data.repoUrl}
-                target="_blank"
-                rel="noreferrer"
-              >
-                {data.repoUrl}
-              </a>
+    <div className="flex flex-col gap-4">
+      <PodStatusStrip serviceSlug={data.slug} />
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <MetricsSparkline serviceSlug={data.slug} panel="req_rate" label="Request rate" />
+        <MetricsSparkline serviceSlug={data.slug} panel="error_rate" label="Error rate" />
+        <MetricsSparkline serviceSlug={data.slug} panel="p95_latency" label="p95 latency" />
+      </div>
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <LogsPanel serviceSlug={data.slug} />
+        <TracesPanel serviceSlug={data.slug} />
+      </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Overview</CardTitle>
+            <CardDescription>
+              {data.description ?? <span className="italic">No description.</span>}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            <Field label="Type">
+              <Badge variant="secondary">{data.type ?? "service"}</Badge>
             </Field>
-          ) : null}
-          {(data.tags?.length ?? 0) > 0 ? (
-            <Field label="Tags">
-              <div className="flex flex-wrap gap-1">
-                {(data.tags ?? []).map((t) => (
-                  <Badge key={t} variant="outline">
-                    {t}
-                  </Badge>
-                ))}
-              </div>
+            <Field label="Lifecycle">
+              <Badge variant={data.lifecycle === "production" ? "default" : "outline"}>
+                {data.lifecycle ?? "experimental"}
+              </Badge>
             </Field>
-          ) : null}
-        </CardContent>
-      </Card>
+            <Field label="Owner team">
+              {data.ownerTeamId ? (
+                <TeamName id={data.ownerTeamId} />
+              ) : (
+                <span className="text-muted-foreground text-sm italic">unowned</span>
+              )}
+            </Field>
+            {data.repoUrl ? (
+              <Field label="Repository">
+                <a
+                  className="text-primary text-sm hover:underline"
+                  href={data.repoUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {data.repoUrl}
+                </a>
+              </Field>
+            ) : null}
+            {(data.tags?.length ?? 0) > 0 ? (
+              <Field label="Tags">
+                <div className="flex flex-wrap gap-1">
+                  {(data.tags ?? []).map((t) => (
+                    <Badge key={t} variant="outline">
+                      {t}
+                    </Badge>
+                  ))}
+                </div>
+              </Field>
+            ) : null}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

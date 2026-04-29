@@ -62,6 +62,15 @@ const EnvSchema = z.object({
   JENKINS_API_URL: z.string().default("http://jenkins.jenkins.svc:8080"),
   JENKINS_API_USERNAME: z.string().default(""),
   JENKINS_API_TOKEN: z.string().default(""),
+
+  // Observability (P2.2). In-cluster DNS for the Loki/Tempo/Prometheus services
+  // deployed by the observability stack. PROM_URL is consumed by C2 (metrics
+  // proxy) — declared here now so the env schema doesn't churn.
+  LOKI_URL: z.string().default("http://loki.observability.svc.cluster.local:3100"),
+  TEMPO_URL: z.string().default("http://tempo.observability.svc.cluster.local:3200"),
+  PROM_URL: z
+    .string()
+    .default("http://kube-prometheus-stack-prometheus.observability.svc.cluster.local:9090"),
 });
 
 export type GatewayEnv = z.infer<typeof EnvSchema>;

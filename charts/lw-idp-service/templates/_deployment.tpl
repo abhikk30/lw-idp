@@ -56,8 +56,11 @@ spec:
               value: {{ .Values.logLevel | default "info" }}
             - name: NODE_ENV
               value: {{ .Values.nodeEnv | default "production" }}
+            # Ship traces directly to Tempo's OTLP HTTP receiver. Originally
+            # pointed at a kube-prometheus-stack OTel collector that was
+            # never deployed — exports went into the void.
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "http://kube-prometheus-stack-otel-collector.observability.svc.cluster.local:4318/v1/traces"
+              value: "http://tempo.observability.svc.cluster.local:4318/v1/traces"
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

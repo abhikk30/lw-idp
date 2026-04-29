@@ -408,6 +408,219 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/observability/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Tail recent logs for a service */
+        get: {
+            parameters: {
+                query: {
+                    /** @description Service slug */
+                    service: string;
+                    since?: string;
+                    limit?: number;
+                    trace_id?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LogsResponse"];
+                    };
+                };
+                400: components["responses"]["BadRequest"];
+                401: components["responses"]["Unauthorized"];
+                404: components["responses"]["NotFound"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/observability/traces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List recent traces for a service */
+        get: {
+            parameters: {
+                query: {
+                    service: string;
+                    since?: string;
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TracesResponse"];
+                    };
+                };
+                400: components["responses"]["BadRequest"];
+                401: components["responses"]["Unauthorized"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/observability/traces/{traceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a single trace's spans */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    traceId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TraceDetailResponse"];
+                    };
+                };
+                400: components["responses"]["BadRequest"];
+                401: components["responses"]["Unauthorized"];
+                404: components["responses"]["NotFound"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/observability/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Sparkline data for a service metric */
+        get: {
+            parameters: {
+                query: {
+                    service: string;
+                    panel: "req_rate" | "error_rate" | "p95_latency";
+                    since?: string;
+                    step?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MetricsResponse"];
+                    };
+                };
+                400: components["responses"]["BadRequest"];
+                401: components["responses"]["Unauthorized"];
+                404: components["responses"]["NotFound"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/observability/pods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List live pods for a service */
+        get: {
+            parameters: {
+                query: {
+                    service: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PodsResponse"];
+                    };
+                };
+                400: components["responses"]["BadRequest"];
+                401: components["responses"]["Unauthorized"];
+                404: components["responses"]["NotFound"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -521,6 +734,73 @@ export interface components {
         ClusterList: {
             items: components["schemas"]["Cluster"][];
             nextCursor?: string;
+        };
+        LokiLine: {
+            /** Format: date-time */
+            ts: string;
+            raw: string;
+            level?: string | null;
+            msg?: string | null;
+            trace_id?: string | null;
+            span_id?: string | null;
+            pod?: string | null;
+        };
+        LogsResponse: {
+            lines: components["schemas"]["LokiLine"][];
+            truncated: boolean;
+        };
+        TraceSummary: {
+            trace_id: string;
+            root_service: string;
+            root_operation: string;
+            /** Format: date-time */
+            started_at: string;
+            duration_ms: number;
+            span_count: number;
+            /** @enum {string} */
+            status: "ok" | "error";
+        };
+        TracesResponse: {
+            traces: components["schemas"]["TraceSummary"][];
+        };
+        SpanNode: {
+            span_id: string;
+            parent_id: string | null;
+            service: string;
+            name: string;
+            /** Format: date-time */
+            started_at: string;
+            duration_ms: number;
+            /** @enum {string} */
+            status: "ok" | "error";
+            attributes: {
+                [key: string]: unknown;
+            };
+        };
+        TraceDetailResponse: {
+            trace_id: string;
+            spans: components["schemas"]["SpanNode"][];
+        };
+        MetricsPoint: {
+            /** Format: date-time */
+            ts: string;
+            value: number;
+        };
+        MetricsResponse: {
+            panel: string;
+            unit: string;
+            points: components["schemas"]["MetricsPoint"][];
+        };
+        Pod: {
+            name: string;
+            phase: string;
+            ready: boolean;
+            started_at?: string | null;
+            restart_count: number;
+            node?: string | null;
+        };
+        PodsResponse: {
+            pods: components["schemas"]["Pod"][];
         };
     };
     responses: {
