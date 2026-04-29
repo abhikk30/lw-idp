@@ -117,6 +117,11 @@ kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n argocd create secret generic argocd-dex \
   --from-literal=clientSecret="${ARGOCD_CLIENT_SECRET}" \
   --dry-run=client -o yaml | kubectl apply -f -
+# Argo CD only reads secrets labeled `app.kubernetes.io/part-of: argocd`
+# when resolving `$<secret>:<key>` refs in argocd-cm — without this label
+# the OIDC client_secret silently resolves to empty and Dex returns
+# "Invalid client credentials" on token exchange.
+kubectl -n argocd label secret argocd-dex app.kubernetes.io/part-of=argocd --overwrite
 
 # gateway-svc-argocd-webhook + argocd-notifications-secret share the same
 # bearer token. argocd-notifications signs outbound webhooks to the gateway
@@ -124,8 +129,12 @@ kubectl -n argocd create secret generic argocd-dex \
 # constant-time-compares it. Spec §12.1 fallback A — bearer token instead
 # of HMAC, since argocd-notifications has no first-class HMAC function.
 WEBHOOK_TOKEN="${GATEWAY_ARGOCD_WEBHOOK_TOKEN:-devnotreal-webhook}"
+# Key name matches the env var that charts/gateway-svc/values.yaml mounts
+# (`ARGOCD_WEBHOOK_TOKEN`). The argocd-notifications-secret uses
+# `webhook-token` (kebab-case) per Argo CD's templating conventions —
+# they hold the same value but with different keys for each consumer.
 kubectl -n lw-idp create secret generic gateway-svc-argocd-webhook \
-  --from-literal=WEBHOOK_TOKEN="${WEBHOOK_TOKEN}" \
+  --from-literal=ARGOCD_WEBHOOK_TOKEN="${WEBHOOK_TOKEN}" \
   --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n argocd create secret generic argocd-notifications-secret \
   --from-literal=webhook-token="${WEBHOOK_TOKEN}" \
