@@ -22,12 +22,18 @@ export interface ObservabilityPluginOptions {
   k8sClient: K8sClient;
 }
 
-const PROMQL: Record<string, (ns: string) => string> = {
-  req_rate: (ns) => `sum(rate(http_server_duration_seconds_count{namespace="${ns}"}[1m]))`,
-  error_rate: (ns) =>
-    `sum(rate(http_server_duration_seconds_count{namespace="${ns}",http_status_code=~"5.."}[1m])) / clamp_min(sum(rate(http_server_duration_seconds_count{namespace="${ns}"}[1m])), 1e-9)`,
-  p95_latency: (ns) =>
-    `histogram_quantile(0.95, sum(rate(http_server_duration_seconds_bucket{namespace="${ns}"}[1m])) by (le))`,
+// PromQL filters by `service=<slug>` rather than namespace because the
+// lw-idp namespace hosts 5 services; namespace-only would mash them
+// together. The metric series name is `http_request_duration_seconds_*`
+// (lw-idp services emit Prometheus-style series via prom-client) — the
+// OTel-style `http_server_duration_seconds_*` name doesn't exist here.
+// p95 multiplies by 1000 to return ms (the histogram is in seconds).
+const PROMQL: Record<string, (svc: string) => string> = {
+  req_rate: (svc) => `sum(rate(http_request_duration_seconds_count{service="${svc}"}[1m]))`,
+  error_rate: (svc) =>
+    `sum(rate(http_request_duration_seconds_count{service="${svc}",status_code=~"5.."}[1m])) / clamp_min(sum(rate(http_request_duration_seconds_count{service="${svc}"}[1m])), 1e-9)`,
+  p95_latency: (svc) =>
+    `1000 * histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{service="${svc}"}[1m])) by (le))`,
 };
 
 const obsPluginFn: FastifyPluginAsync<ObservabilityPluginOptions> = async (fastify, opts) => {
@@ -158,17 +164,10 @@ const obsPluginFn: FastifyPluginAsync<ObservabilityPluginOptions> = async (fasti
         .send({ code: "bad_request", message: "panel must be req_rate|error_rate|p95_latency" });
     }
 
-    let ns: string | null;
-    try {
-      ns = await resolveNamespace(slug, req.session.idToken ?? "");
-    } catch (err) {
-      fastify.log.error({ err }, "argocd app lookup failed");
-      return reply.code(502).send({ code: "argocd_unreachable", message: "argocd unreachable" });
-    }
-    if (ns === null) {
-      return reply.code(404).send({ code: "not_found", message: "service not found in argocd" });
-    }
-
+    // Metrics filter by `service=<slug>` directly (the prom-client series'
+    // `service` label matches the catalog slug 1:1). No Argo CD lookup
+    // needed — and that lookup would be wrong anyway for IDP services
+    // themselves, which don't have an Argo CD App in this cluster.
     const sinceMs = parseSinceMs(q.since ?? "1h");
     const stepRaw = q.step ?? "15s";
     const stepSec = Math.max(1, Number(stepRaw.replace(/s$/, "")));
@@ -176,7 +175,7 @@ const obsPluginFn: FastifyPluginAsync<ObservabilityPluginOptions> = async (fasti
 
     try {
       const result = await prom.queryRange({
-        query: PROMQL[panel](ns),
+        query: PROMQL[panel](slug),
         startMs: now - sinceMs,
         endMs: now,
         stepSec,

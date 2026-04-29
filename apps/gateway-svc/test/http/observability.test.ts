@@ -386,19 +386,26 @@ describe("gateway /api/v1/observability/*", () => {
       expect(body.code).toBe("bad_request");
     });
 
-    it("returns 404 when Argo CD App does not exist", async () => {
-      argo.setHandler(() => ({ status: 404, body: {} }));
+    it("returns 200 with empty points when Prom has no series for the service", async () => {
+      // Metrics no longer round-trip through Argo CD — slug goes straight
+      // into the PromQL service= filter. A non-existent service simply
+      // produces no series, which is the empty-data state the UI renders
+      // as "No data in the last 1h". 404 would be misleading here.
+      prom.setHandler(() => ({
+        status: 200,
+        body: { status: "success", data: { resultType: "matrix", result: [] } },
+      }));
       const res = await fetch(
         `${gatewayUrl}/api/v1/observability/metrics?service=ghost&panel=req_rate`,
         { headers: { cookie: "lw-sid=sess_obs_ok" } },
       );
-      expect(res.status).toBe(404);
-      const body = (await res.json()) as { code: string };
-      expect(body.code).toBe("not_found");
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { points: unknown[] };
+      expect(body.points).toEqual([]);
     });
 
     for (const panel of ["req_rate", "error_rate", "p95_latency"] as const) {
-      it(`returns 200 and queries Prom with namespace from Argo CD (${panel})`, async () => {
+      it(`returns 200 and queries Prom with service=<slug> filter (${panel})`, async () => {
         argo.setHandler(() => ({
           status: 200,
           body: { spec: { destination: { namespace: "sample-nginx" } } },
@@ -423,7 +430,7 @@ describe("gateway /api/v1/observability/*", () => {
         const promUrl = prom.capturedUrls[before];
         expect(promUrl).toBeDefined();
         const decoded = decodeURIComponent((promUrl ?? "").replace(/\+/g, " "));
-        expect(decoded).toContain('namespace="sample-nginx"');
+        expect(decoded).toContain('service="sample-nginx"');
       });
     }
 
