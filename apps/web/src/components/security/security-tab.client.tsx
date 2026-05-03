@@ -47,6 +47,12 @@ export function SecurityTab({ serviceSlug }: { serviceSlug: string }): ReactNode
     unknown: 0,
   };
   const lastScan = data?.last_scan_at;
+  // Vuln scan is pending (Trivy hasn't pulled the image yet) when there's
+  // no last_scan_at AND every severity bucket is zero. Config audits run
+  // independently from manifest data, so they may already be present even
+  // when the vuln side hasn't started — distinguish to avoid showing
+  // "Critical 0 / High 0" as if the image had been verified clean.
+  const vulnScanPending = !lastScan && v.critical + v.high + v.medium + v.low + v.unknown === 0;
   const noReports =
     !data?.last_scan_at &&
     (data?.vulnerabilities ?? []).length === 0 &&
@@ -74,25 +80,32 @@ export function SecurityTab({ serviceSlug }: { serviceSlug: string }): ReactNode
           <CardTitle className="text-sm">Vulnerabilities</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap items-center gap-3 text-sm">
-            <span>
-              <SeverityBadge severity="CRITICAL" /> {v.critical}
-            </span>
-            <span>
-              <SeverityBadge severity="HIGH" /> {v.high}
-            </span>
-            <span>
-              <SeverityBadge severity="MEDIUM" /> {v.medium}
-            </span>
-            <span>
-              <SeverityBadge severity="LOW" /> {v.low}
-            </span>
-            {v.unknown > 0 ? (
+          {vulnScanPending ? (
+            <p className="text-muted-foreground text-xs italic">
+              Vulnerability scan pending. Trivy hasn't pulled this image yet — initial scans are
+              queued one image at a time. Config audits below are unaffected.
+            </p>
+          ) : (
+            <div className="flex flex-wrap items-center gap-3 text-sm">
               <span>
-                <SeverityBadge severity="UNKNOWN" /> {v.unknown}
+                <SeverityBadge severity="CRITICAL" /> {v.critical}
               </span>
-            ) : null}
-          </div>
+              <span>
+                <SeverityBadge severity="HIGH" /> {v.high}
+              </span>
+              <span>
+                <SeverityBadge severity="MEDIUM" /> {v.medium}
+              </span>
+              <span>
+                <SeverityBadge severity="LOW" /> {v.low}
+              </span>
+              {v.unknown > 0 ? (
+                <span>
+                  <SeverityBadge severity="UNKNOWN" /> {v.unknown}
+                </span>
+              ) : null}
+            </div>
+          )}
           {lastScan ? (
             <p className="text-muted-foreground mt-2 text-xs">
               Last scan: {new Date(lastScan).toLocaleString()} · namespace {data?.namespace}
