@@ -91,6 +91,28 @@ function workloadSlug(r: VulnReport | ConfigAuditReport | ExposedSecretReport): 
   return r.metadata?.labels?.["trivy-operator.resource.name"] ?? null;
 }
 
+// Trivy's `trivy-operator.resource.name` label is the parent workload name
+// (e.g. the ReplicaSet name `gateway-svc-7d8b9c8d4`), not the bare service
+// slug. The IDP slug is a prefix of that, so match by slug or slug-`-`-suffix.
+function workloadMatchesSlug(
+  r: VulnReport | ConfigAuditReport | ExposedSecretReport,
+  slug: string,
+): boolean {
+  const name = workloadSlug(r);
+  if (name === null) {
+    return false;
+  }
+  return name === slug || name.startsWith(`${slug}-`);
+}
+
+// Reverse direction: derive a clean slug from a workload name. ReplicaSets
+// emit `<deployment>-<10-char-hash>`; strip the trailing hash. DaemonSet /
+// StatefulSet names are already clean — the regex is a no-op for those.
+const REPLICASET_HASH_SUFFIX = /-[a-z0-9]{8,12}$/;
+function normalizeWorkloadName(name: string): string {
+  return name.replace(REPLICASET_HASH_SUFFIX, "");
+}
+
 function isMissingCrd(err: unknown): boolean {
   return err instanceof Error && err.message.includes("404");
 }
@@ -119,9 +141,9 @@ function buildServiceReport(
   configs: ConfigAuditReport[],
   secrets: ExposedSecretReport[],
 ) {
-  const myVulns = vulns.filter((r) => workloadSlug(r) === slug);
-  const myConfigs = configs.filter((r) => workloadSlug(r) === slug);
-  const mySecrets = secrets.filter((r) => workloadSlug(r) === slug);
+  const myVulns = vulns.filter((r) => workloadMatchesSlug(r, slug));
+  const myConfigs = configs.filter((r) => workloadMatchesSlug(r, slug));
+  const mySecrets = secrets.filter((r) => workloadMatchesSlug(r, slug));
 
   const vulnSum = { critical: 0, high: 0, medium: 0, low: 0, unknown: 0 };
   const allVulns: ServiceVuln[] = [];
@@ -223,7 +245,8 @@ const securityPluginFn: FastifyPluginAsync<SecurityPluginOptions> = async (fasti
       vulnSum.medium += s.mediumCount ?? 0;
       vulnSum.low += s.lowCount ?? 0;
       vulnSum.unknown += s.unknownCount ?? 0;
-      const slug = workloadSlug(r);
+      const rawName = workloadSlug(r);
+      const slug = rawName !== null ? normalizeWorkloadName(rawName) : null;
       if (slug) {
         const prev = perService.get(slug) ?? { critical: 0, high: 0 };
         prev.critical += s.criticalCount ?? 0;
