@@ -24,6 +24,9 @@ function fakeK8sClient(): FakeK8s {
       calls.push({ namespace, labelSelector });
       return listFn(namespace, labelSelector);
     },
+    async listCustomResources() {
+      throw new Error("listCustomResources not used in observability tests");
+    },
   };
 }
 

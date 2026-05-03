@@ -1,0 +1,37 @@
+# Scan every namespace.
+targetNamespaces: ""
+
+operator:
+  scanJobsConcurrentLimit: 5
+  vulnerabilityScannerEnabled: true
+  configAuditScannerEnabled: true
+  rbacAssessmentScannerEnabled: true
+  exposedSecretScannerEnabled: true
+  clusterComplianceEnabled: true
+  metricsConfigAuditEnabled: true
+  metricsVulnerabilityEnabled: true
+
+# Enable just the CIS-Kubernetes benchmark for v1; others are noisier and
+# more situational.
+compliance:
+  cron: "0 */6 * * *"
+  reportType: summary
+  failEntriesLimit: 10
+
+# Resource asks tuned for kind dev cluster (single-worker).
+resources:
+  requests: { cpu: 100m, memory: 256Mi }
+  limits:   { cpu: 500m, memory: 1Gi }
+
+trivy:
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits:   { cpu: 500m, memory: 512Mi }
+  ignoreUnfixed: false
+  severity: "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
+
+serviceMonitor:
+  enabled: true
+
+trivyOperator:
+  scanJobTimeout: 5m

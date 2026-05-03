@@ -17,6 +17,7 @@ const NAV: NavItem[] = [
   { href: "/services", label: "Services", match: "/services" },
   { href: "/clusters", label: "Clusters", match: "/clusters" },
   { href: "/teams", label: "Teams", match: "/teams" },
+  { href: "/security", label: "Security", match: "/security" },
   { href: "/settings/profile", label: "Settings", match: "/settings" },
 ];
 

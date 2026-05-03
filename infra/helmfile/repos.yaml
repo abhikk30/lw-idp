@@ -1,4 +1,6 @@
 repositories:
+  - name: aquasecurity
+    url: https://aquasecurity.github.io/helm-charts/
   - name: jetstack
     url: https://charts.jetstack.io
   - name: ingress-nginx
