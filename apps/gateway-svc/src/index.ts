@@ -14,6 +14,7 @@ import { importPlugin } from "./http/import.js";
 import { jenkinsPlugin } from "./http/jenkins.js";
 import { mePlugin } from "./http/me.js";
 import { observabilityPlugin } from "./http/observability.js";
+import { securityPlugin } from "./http/security.js";
 import { servicesPlugin } from "./http/services.js";
 import { teamsPlugin } from "./http/teams.js";
 import { argocdWebhookPlugin } from "./http/webhooks/argocd.js";
@@ -145,6 +146,11 @@ await startServer({
       argocdApiUrl: env.ARGOCD_API_URL,
       k8sClient,
     });
+    // Security dashboard proxy: reads Trivy Operator CRDs (vulnerability,
+    // configaudit, exposedsecret, rbacassessment, clustercompliance) via
+    // the in-cluster Kubernetes API. Returns 503 trivy_not_installed when
+    // the CRDs aren't registered yet.
+    await fastify.register(securityPlugin, { k8sClient });
     // Webhook receiver: POST /api/v1/webhooks/argocd — argocd-notifications-controller
     // posts here; we verify the bearer token and publish a CloudEvent to NATS.
     await fastify.register(argocdWebhookPlugin, {
