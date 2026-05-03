@@ -1,3 +1,6 @@
+// MUST be the first import — starts OTel SDK before `http` is loaded.
+import "@lw-idp/telemetry/preload";
+
 import { createOidcVerifier, createRedisSessionStore } from "@lw-idp/auth";
 import { createRedis, startServer } from "@lw-idp/service-kit";
 import { connect as natsConnect } from "nats";
