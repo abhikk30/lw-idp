@@ -29,6 +29,15 @@ releases:
     values:
       - ../observability/tempo.yaml
 
+  - name: trivy-operator
+    namespace: trivy-system
+    chart: aquasecurity/trivy-operator
+    version: 0.31.0
+    values:
+      - ../trivy/values.yaml
+    needs:
+      - observability/kube-prometheus-stack
+
   - name: lw-idp-observability
     namespace: observability
     chart: ../../charts/lw-idp-observability
