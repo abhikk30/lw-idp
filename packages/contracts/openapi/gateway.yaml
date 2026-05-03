@@ -16,6 +16,7 @@ tags:
   - name: clusters
   - name: teams
   - name: observability
+  - name: security
 
 paths:
   /me:
@@ -348,6 +349,109 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /security/cluster:
+    get:
+      tags: [security]
+      summary: Cluster-wide security summary (vulns + config audits + secrets + top services)
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SecurityClusterResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "502":
+          description: Upstream (kube-api or argocd) unreachable
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: Trivy Operator CRDs not present
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /security/cluster/compliance:
+    get:
+      tags: [security]
+      summary: CIS compliance profiles + per-control status
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SecurityComplianceResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "502":
+          description: Upstream unreachable
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: Trivy Operator CRDs not present
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /security/cluster/rbac:
+    get:
+      tags: [security]
+      summary: RBAC findings flattened across all RbacAssessmentReports (HIGH/CRITICAL/MEDIUM only)
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SecurityRbacResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "502":
+          description: Upstream unreachable
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: Trivy Operator CRDs not present
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /security/services/{slug}:
+    get:
+      tags: [security]
+      summary: Per-service security report (vulns + config audits + secrets)
+      security:
+        - sessionCookie: []
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SecurityServiceResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "502":
+          description: Upstream unreachable
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: Trivy Operator CRDs not present
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
 components:
   securitySchemes:
     sessionCookie:
@@ -623,3 +727,186 @@ components:
       required: [pods]
       properties:
         pods: { type: array, items: { $ref: "#/components/schemas/Pod" } }
+
+    SeverityCounts:
+      type: object
+      required: [critical, high, medium, low, unknown]
+      properties:
+        critical: { type: integer }
+        high:     { type: integer }
+        medium:   { type: integer }
+        low:      { type: integer }
+        unknown:  { type: integer }
+
+    ConfigAuditCounts:
+      type: object
+      required: [critical, high, medium, low]
+      properties:
+        critical: { type: integer }
+        high:     { type: integer }
+        medium:   { type: integer }
+        low:      { type: integer }
+
+    ExposedSecretItem:
+      type: object
+      required: [rule_id, title, severity, match, target, workload, namespace]
+      properties:
+        rule_id:   { type: string }
+        title:     { type: string }
+        severity:  { type: string }
+        match:     { type: string }
+        target:    { type: string }
+        workload:  { type: string }
+        namespace: { type: string }
+
+    ExposedSecretsBlock:
+      type: object
+      required: [total, items]
+      properties:
+        total: { type: integer }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/ExposedSecretItem" }
+
+    ScanCoverage:
+      type: object
+      required: [workloads_scanned, workloads_total, last_scan_at]
+      properties:
+        workloads_scanned: { type: integer }
+        workloads_total:   { type: integer }
+        last_scan_at:      { type: string, nullable: true }
+
+    TopVulnerableService:
+      type: object
+      required: [slug, critical, high]
+      properties:
+        slug:     { type: string }
+        critical: { type: integer }
+        high:     { type: integer }
+
+    SecurityClusterResponse:
+      type: object
+      required:
+        [
+          vulnerability_summary,
+          config_audit_summary,
+          exposed_secrets,
+          scan_coverage,
+          top_vulnerable_services,
+        ]
+      properties:
+        vulnerability_summary: { $ref: "#/components/schemas/SeverityCounts" }
+        config_audit_summary:  { $ref: "#/components/schemas/ConfigAuditCounts" }
+        exposed_secrets:       { $ref: "#/components/schemas/ExposedSecretsBlock" }
+        scan_coverage:         { $ref: "#/components/schemas/ScanCoverage" }
+        top_vulnerable_services:
+          type: array
+          items: { $ref: "#/components/schemas/TopVulnerableService" }
+
+    ComplianceControl:
+      type: object
+      required: [id, name, status, severity]
+      properties:
+        id:       { type: string }
+        name:     { type: string }
+        status:   { type: string }
+        severity: { type: string }
+
+    ComplianceProfile:
+      type: object
+      required: [name, summary, controls]
+      properties:
+        name: { type: string }
+        summary:
+          type: object
+          required: [passCount, failCount]
+          properties:
+            passCount: { type: integer }
+            failCount: { type: integer }
+        controls:
+          type: array
+          items: { $ref: "#/components/schemas/ComplianceControl" }
+
+    SecurityComplianceResponse:
+      type: object
+      required: [profiles]
+      properties:
+        profiles:
+          type: array
+          items: { $ref: "#/components/schemas/ComplianceProfile" }
+
+    RbacFinding:
+      type: object
+      required: [service_account, namespace, check_id, title, severity, message]
+      properties:
+        service_account: { type: string }
+        namespace:       { type: string }
+        check_id:        { type: string }
+        title:           { type: string }
+        severity:        { type: string }
+        message:         { type: string }
+
+    SecurityRbacResponse:
+      type: object
+      required: [findings]
+      properties:
+        findings:
+          type: array
+          items: { $ref: "#/components/schemas/RbacFinding" }
+
+    Vulnerability:
+      type: object
+      required: [cve_id, severity, package, installed_version, fixed_version, primary_link]
+      properties:
+        cve_id:            { type: string }
+        severity:          { type: string }
+        package:           { type: string }
+        installed_version: { type: string }
+        fixed_version:     { type: string }
+        primary_link:      { type: string }
+
+    ConfigAuditCheck:
+      type: object
+      required: [check_id, title, severity, message]
+      properties:
+        check_id: { type: string }
+        title:    { type: string }
+        severity: { type: string }
+        message:  { type: string }
+
+    ServiceExposedSecret:
+      type: object
+      required: [rule_id, title, severity, match, target]
+      properties:
+        rule_id:  { type: string }
+        title:    { type: string }
+        severity: { type: string }
+        match:    { type: string }
+        target:   { type: string }
+
+    SecurityServiceResponse:
+      type: object
+      required:
+        [
+          service,
+          namespace,
+          vulnerability_summary,
+          vulnerabilities,
+          config_audits,
+          exposed_secrets,
+          last_scan_at,
+        ]
+      properties:
+        service:               { type: string }
+        namespace:             { type: string }
+        vulnerability_summary: { $ref: "#/components/schemas/SeverityCounts" }
+        vulnerabilities:
+          type: array
+          items: { $ref: "#/components/schemas/Vulnerability" }
+        config_audits:
+          type: array
+          items: { $ref: "#/components/schemas/ConfigAuditCheck" }
+        exposed_secrets:
+          type: array
+          items: { $ref: "#/components/schemas/ServiceExposedSecret" }
+        last_scan_at: { type: string, nullable: true }

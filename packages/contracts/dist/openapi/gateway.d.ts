@@ -621,6 +621,230 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/security/cluster": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Cluster-wide security summary (vulns + config audits + secrets + top services) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SecurityClusterResponse"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                /** @description Upstream (kube-api or argocd) unreachable */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Trivy Operator CRDs not present */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/security/cluster/compliance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** CIS compliance profiles + per-control status */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SecurityComplianceResponse"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                /** @description Upstream unreachable */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Trivy Operator CRDs not present */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/security/cluster/rbac": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** RBAC findings flattened across all RbacAssessmentReports (HIGH/CRITICAL/MEDIUM only) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SecurityRbacResponse"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                /** @description Upstream unreachable */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Trivy Operator CRDs not present */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/security/services/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Per-service security report (vulns + config audits + secrets) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    slug: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SecurityServiceResponse"];
+                    };
+                };
+                400: components["responses"]["BadRequest"];
+                401: components["responses"]["Unauthorized"];
+                404: components["responses"]["NotFound"];
+                /** @description Upstream unreachable */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Trivy Operator CRDs not present */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -801,6 +1025,107 @@ export interface components {
         };
         PodsResponse: {
             pods: components["schemas"]["Pod"][];
+        };
+        SeverityCounts: {
+            critical: number;
+            high: number;
+            medium: number;
+            low: number;
+            unknown: number;
+        };
+        ConfigAuditCounts: {
+            critical: number;
+            high: number;
+            medium: number;
+            low: number;
+        };
+        ExposedSecretItem: {
+            rule_id: string;
+            title: string;
+            severity: string;
+            match: string;
+            target: string;
+            workload: string;
+            namespace: string;
+        };
+        ExposedSecretsBlock: {
+            total: number;
+            items: components["schemas"]["ExposedSecretItem"][];
+        };
+        ScanCoverage: {
+            workloads_scanned: number;
+            workloads_total: number;
+            last_scan_at: string | null;
+        };
+        TopVulnerableService: {
+            slug: string;
+            critical: number;
+            high: number;
+        };
+        SecurityClusterResponse: {
+            vulnerability_summary: components["schemas"]["SeverityCounts"];
+            config_audit_summary: components["schemas"]["ConfigAuditCounts"];
+            exposed_secrets: components["schemas"]["ExposedSecretsBlock"];
+            scan_coverage: components["schemas"]["ScanCoverage"];
+            top_vulnerable_services: components["schemas"]["TopVulnerableService"][];
+        };
+        ComplianceControl: {
+            id: string;
+            name: string;
+            status: string;
+            severity: string;
+        };
+        ComplianceProfile: {
+            name: string;
+            summary: {
+                passCount: number;
+                failCount: number;
+            };
+            controls: components["schemas"]["ComplianceControl"][];
+        };
+        SecurityComplianceResponse: {
+            profiles: components["schemas"]["ComplianceProfile"][];
+        };
+        RbacFinding: {
+            service_account: string;
+            namespace: string;
+            check_id: string;
+            title: string;
+            severity: string;
+            message: string;
+        };
+        SecurityRbacResponse: {
+            findings: components["schemas"]["RbacFinding"][];
+        };
+        Vulnerability: {
+            cve_id: string;
+            severity: string;
+            package: string;
+            installed_version: string;
+            fixed_version: string;
+            primary_link: string;
+        };
+        ConfigAuditCheck: {
+            check_id: string;
+            title: string;
+            severity: string;
+            message: string;
+        };
+        ServiceExposedSecret: {
+            rule_id: string;
+            title: string;
+            severity: string;
+            match: string;
+            target: string;
+        };
+        SecurityServiceResponse: {
+            service: string;
+            namespace: string;
+            vulnerability_summary: components["schemas"]["SeverityCounts"];
+            vulnerabilities: components["schemas"]["Vulnerability"][];
+            config_audits: components["schemas"]["ConfigAuditCheck"][];
+            exposed_secrets: components["schemas"]["ServiceExposedSecret"][];
+            last_scan_at: string | null;
         };
     };
     responses: {
