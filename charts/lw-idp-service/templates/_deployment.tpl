@@ -61,6 +61,11 @@ spec:
             # never deployed — exports went into the void.
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: "http://tempo.observability.svc.cluster.local:4318/v1/traces"
+            # Read by `@lw-idp/telemetry/preload` to register the SDK with
+            # the right service.name OTel resource attribute, which is what
+            # Tempo's TraceQL `resource.service.name="…"` filter matches on.
+            - name: OTEL_SERVICE_NAME
+              value: {{ .Release.Name | quote }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

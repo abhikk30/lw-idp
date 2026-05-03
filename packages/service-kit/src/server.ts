@@ -1,4 +1,4 @@
-import { createLogger, startOtel } from "@lw-idp/telemetry";
+import { createLogger } from "@lw-idp/telemetry";
 import Fastify from "fastify";
 import type { FastifyBaseLogger, FastifyInstance } from "fastify";
 import metricsPlugin, { type IMetricsPluginOptions } from "fastify-metrics";
@@ -33,21 +33,10 @@ export interface LwIdpServer {
 }
 
 export async function buildServer(opts: BuildServerOptions): Promise<LwIdpServer> {
-  // Start OTel SDK first — auto-instrumentation hooks Node's `http` module on
-  // require, so the earlier this runs the better. Any failure (e.g. OTLP
-  // endpoint unreachable in tests) is non-fatal: traces simply won't ship,
-  // but the service still boots.
-  if (process.env.NODE_ENV !== "test" && process.env.OTEL_DISABLED !== "true") {
-    try {
-      startOtel({
-        service: opts.name,
-        ...(opts.version !== undefined ? { version: opts.version } : {}),
-      });
-    } catch {
-      // swallow — OTel is best-effort
-    }
-  }
-
+  // OTel SDK is started by `@lw-idp/telemetry/preload`, which each service's
+  // index.ts imports as its very first import — so by the time we get here,
+  // auto-instrumentation has already monkey-patched `http` and Fastify
+  // listeners will be traced.
   const logger = createLogger({ service: opts.name });
   const fastify = Fastify({
     loggerInstance: logger as FastifyBaseLogger,

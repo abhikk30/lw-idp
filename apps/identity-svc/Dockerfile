@@ -32,12 +32,16 @@ RUN cd /repo/packages/contracts && \
     ./node_modules/.bin/tsc -p tsconfig.json
 # Patch exports in each workspace lib so pnpm deploy bundles compiled JS
 RUN apk add --no-cache jq && \
-    for pkg in errors telemetry service-kit auth db events; do \
+    for pkg in errors service-kit auth db events; do \
       pkgjson="/repo/packages/$pkg/package.json"; \
       jq '.exports = {".": "./dist/src/index.js"}' "$pkgjson" > /tmp/p.json && \
       mv /tmp/p.json "$pkgjson"; \
       echo "patched $pkg"; \
     done && \
+    pkgjson="/repo/packages/telemetry/package.json" && \
+    jq '.exports = {".": "./dist/src/index.js", "./preload": "./dist/src/preload.js"}' "$pkgjson" > /tmp/p.json && \
+    mv /tmp/p.json "$pkgjson" && \
+    echo "patched telemetry (with preload subpath)" && \
     pkgjson="/repo/packages/contracts/package.json"; \
     jq '.exports = {".": "./src/index.js", "./gateway": {"types": "./dist/openapi/gateway.d.ts", "default": "./src/gateway.js"}, "./identity/v1": "./dist/proto/lwidp/identity/v1/identity_pb.js", "./catalog/v1": "./dist/proto/lwidp/catalog/v1/catalog_pb.js", "./cluster/v1": "./dist/proto/lwidp/cluster/v1/cluster_pb.js", "./notification/v1": "./dist/proto/lwidp/notification/v1/notification_pb.js"}' "$pkgjson" > /tmp/p.json && \
     mv /tmp/p.json "$pkgjson" && \

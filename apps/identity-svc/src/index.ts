@@ -1,3 +1,6 @@
+// MUST be the first import — starts OTel SDK before `http` is loaded.
+import "@lw-idp/telemetry/preload";
+
 import { createOidcVerifier } from "@lw-idp/auth";
 import { connect, runMigrations } from "@lw-idp/db";
 import { publishOutbox } from "@lw-idp/events";
