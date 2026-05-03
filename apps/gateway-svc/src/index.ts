@@ -150,7 +150,10 @@ await startServer({
     // configaudit, exposedsecret, rbacassessment, clustercompliance) via
     // the in-cluster Kubernetes API. Returns 503 trivy_not_installed when
     // the CRDs aren't registered yet.
-    await fastify.register(securityPlugin, { k8sClient });
+    await fastify.register(securityPlugin, {
+      k8sClient,
+      argocdApiUrl: env.ARGOCD_API_URL,
+    });
     // Webhook receiver: POST /api/v1/webhooks/argocd — argocd-notifications-controller
     // posts here; we verify the bearer token and publish a CloudEvent to NATS.
     await fastify.register(argocdWebhookPlugin, {

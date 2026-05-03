@@ -4,6 +4,14 @@ import type { K8sClient } from "../clients/k8s.js";
 
 export interface SecurityPluginOptions {
   k8sClient: K8sClient;
+  /**
+   * Argo CD API base URL. The plugin reads `.spec.destination.namespace` from
+   * the Argo CD Application CR named after the service slug to determine the
+   * namespace to scope per-service Trivy reports. Mirrors the same pattern in
+   * `apps/gateway-svc/src/http/observability.ts` — `targetNamespace` isn't on
+   * the catalog row, so the App CR is the source of truth.
+   */
+  argocdApiUrl: string;
 }
 
 const TRIVY_API = "aquasecurity.github.io/v1alpha1";
@@ -26,9 +34,21 @@ interface Check {
   severity?: string;
   messages?: string[];
 }
+interface Vulnerability {
+  vulnerabilityID?: string;
+  severity?: string;
+  resource?: string;
+  installedVersion?: string;
+  fixedVersion?: string;
+  primaryLink?: string;
+}
 interface VulnReport {
   metadata?: ReportMeta;
-  report?: { summary?: SeveritySummary; updateTimestamp?: string };
+  report?: {
+    summary?: SeveritySummary;
+    updateTimestamp?: string;
+    vulnerabilities?: Vulnerability[];
+  };
 }
 interface ConfigAuditReport {
   metadata?: ReportMeta;
@@ -73,6 +93,91 @@ function workloadSlug(r: VulnReport | ConfigAuditReport | ExposedSecretReport): 
 
 function isMissingCrd(err: unknown): boolean {
   return err instanceof Error && err.message.includes("404");
+}
+
+const SEVERITY_ORDER: Record<string, number> = {
+  CRITICAL: 0,
+  HIGH: 1,
+  MEDIUM: 2,
+  LOW: 3,
+  UNKNOWN: 4,
+};
+
+interface ServiceVuln {
+  cve_id: string;
+  severity: string;
+  package: string;
+  installed_version: string;
+  fixed_version: string;
+  primary_link: string;
+}
+
+function buildServiceReport(
+  slug: string,
+  ns: string,
+  vulns: VulnReport[],
+  configs: ConfigAuditReport[],
+  secrets: ExposedSecretReport[],
+) {
+  const myVulns = vulns.filter((r) => workloadSlug(r) === slug);
+  const myConfigs = configs.filter((r) => workloadSlug(r) === slug);
+  const mySecrets = secrets.filter((r) => workloadSlug(r) === slug);
+
+  const vulnSum = { critical: 0, high: 0, medium: 0, low: 0, unknown: 0 };
+  const allVulns: ServiceVuln[] = [];
+  let lastScan: string | null = null;
+  for (const r of myVulns) {
+    const s = r.report?.summary ?? {};
+    vulnSum.critical += s.criticalCount ?? 0;
+    vulnSum.high += s.highCount ?? 0;
+    vulnSum.medium += s.mediumCount ?? 0;
+    vulnSum.low += s.lowCount ?? 0;
+    vulnSum.unknown += s.unknownCount ?? 0;
+    const ts = r.report?.updateTimestamp;
+    if (ts && (lastScan === null || ts > lastScan)) {
+      lastScan = ts;
+    }
+    for (const v of r.report?.vulnerabilities ?? []) {
+      allVulns.push({
+        cve_id: v.vulnerabilityID ?? "",
+        severity: sevKey(v.severity),
+        package: v.resource ?? "",
+        installed_version: v.installedVersion ?? "",
+        fixed_version: v.fixedVersion ?? "",
+        primary_link: v.primaryLink ?? "",
+      });
+    }
+  }
+  allVulns.sort((a, b) => (SEVERITY_ORDER[a.severity] ?? 99) - (SEVERITY_ORDER[b.severity] ?? 99));
+
+  const configAudits = myConfigs.flatMap((r) =>
+    (r.report?.checks ?? []).map((c) => ({
+      check_id: c.checkID ?? "",
+      title: c.title ?? "",
+      severity: sevKey(c.severity),
+      message: c.messages?.[0] ?? "",
+    })),
+  );
+
+  const exposedSecrets = mySecrets.flatMap((r) =>
+    (r.report?.secrets ?? []).map((s) => ({
+      rule_id: s.ruleID ?? "",
+      title: s.title ?? "",
+      severity: sevKey(s.severity),
+      match: s.match ?? "",
+      target: s.target ?? "",
+    })),
+  );
+
+  return {
+    service: slug,
+    namespace: ns,
+    vulnerability_summary: vulnSum,
+    vulnerabilities: allVulns.slice(0, 50),
+    config_audits: configAudits,
+    exposed_secrets: exposedSecrets,
+    last_scan_at: lastScan,
+  };
 }
 
 const securityPluginFn: FastifyPluginAsync<SecurityPluginOptions> = async (fastify, opts) => {
@@ -240,6 +345,80 @@ const securityPluginFn: FastifyPluginAsync<SecurityPluginOptions> = async (fasti
     );
     return reply.send({ findings });
   });
+
+  // Resolve a service slug → its targetNamespace by reading the Argo CD
+  // Application CR. Mirrors apps/gateway-svc/src/http/observability.ts —
+  // kept locally to avoid cross-plugin coupling.
+  async function resolveNamespace(slug: string, idToken: string): Promise<string | null> {
+    const base = opts.argocdApiUrl.replace(/\/+$/, "");
+    const url = `${base}/api/v1/applications/${encodeURIComponent(slug)}`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${idToken}` } });
+    if (res.status === 404) {
+      return null;
+    }
+    if (!res.ok) {
+      throw new Error(`argocd app lookup failed: ${res.status}`);
+    }
+    const json = (await res.json()) as { spec?: { destination?: { namespace?: string } } };
+    return json.spec?.destination?.namespace ?? null;
+  }
+
+  fastify.get<{ Params: { slug: string } }>(
+    "/api/v1/security/services/:slug",
+    async (req, reply) => {
+      if (!req.session) {
+        return reply.code(401).send({ code: "unauthorized", message: "auth required" });
+      }
+      const slug = req.params.slug;
+      if (!slug) {
+        return reply.code(400).send({ code: "bad_request", message: "slug required" });
+      }
+
+      let ns: string | null;
+      try {
+        ns = await resolveNamespace(slug, req.session.idToken ?? "");
+      } catch (err) {
+        fastify.log.error({ err }, "argocd app lookup failed");
+        return reply.code(502).send({ code: "argocd_unreachable", message: "argocd unreachable" });
+      }
+      if (ns === null) {
+        return reply.code(404).send({ code: "not_found", message: "service not found in argocd" });
+      }
+
+      let vulns: VulnReport[];
+      let configs: ConfigAuditReport[];
+      let secrets: ExposedSecretReport[];
+      try {
+        [vulns, configs, secrets] = await Promise.all([
+          opts.k8sClient.listCustomResources({
+            apiVersion: TRIVY_API,
+            kind: "vulnerabilityreports",
+            namespace: ns,
+          }) as Promise<VulnReport[]>,
+          opts.k8sClient.listCustomResources({
+            apiVersion: TRIVY_API,
+            kind: "configauditreports",
+            namespace: ns,
+          }) as Promise<ConfigAuditReport[]>,
+          opts.k8sClient.listCustomResources({
+            apiVersion: TRIVY_API,
+            kind: "exposedsecretreports",
+            namespace: ns,
+          }) as Promise<ExposedSecretReport[]>,
+        ]);
+      } catch (err) {
+        if (isMissingCrd(err)) {
+          return reply
+            .code(503)
+            .send({ code: "trivy_not_installed", message: "Trivy Operator CRDs not present" });
+        }
+        fastify.log.error({ err }, "trivy reports fetch failed");
+        return reply.code(502).send({ code: "k8s_unreachable", message: "kube api unreachable" });
+      }
+
+      return reply.send(buildServiceReport(slug, ns, vulns, configs, secrets));
+    },
+  );
 };
 
 export const securityPlugin = fp(securityPluginFn, { name: "lw-idp-security" });

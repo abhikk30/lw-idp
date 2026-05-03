@@ -1,3 +1,5 @@
+import { type Server, createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import type { SessionRecord, SessionStore, SessionStoreSetOptions } from "@lw-idp/auth";
 import { type LwIdpServer, buildServer } from "@lw-idp/service-kit";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -48,12 +50,49 @@ function memorySession(): SessionStore {
 
 const SESSION_COOKIE = { cookie: "lw-sid=sess_sec_ok" };
 
+type RouteHandler = (
+  url: string,
+  method: string,
+) => { status: number; body: unknown } | Promise<{ status: number; body: unknown }>;
+
+interface StubServer {
+  server: Server;
+  baseUrl: string;
+  setHandler(h: RouteHandler): void;
+  capturedUrls: string[];
+}
+
+async function startStub(): Promise<StubServer> {
+  const capturedUrls: string[] = [];
+  let handler: RouteHandler = () => ({ status: 200, body: {} });
+  const server = createServer(async (req, res) => {
+    const url = req.url ?? "";
+    capturedUrls.push(url);
+    const result = await handler(url, req.method ?? "GET");
+    res.statusCode = result.status;
+    res.setHeader("content-type", "application/json");
+    res.end(typeof result.body === "string" ? result.body : JSON.stringify(result.body));
+  });
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
+  const port = (server.address() as AddressInfo).port;
+  return {
+    server,
+    baseUrl: `http://127.0.0.1:${port}`,
+    setHandler: (h) => {
+      handler = h;
+    },
+    capturedUrls,
+  };
+}
+
 describe("gateway /api/v1/security/cluster*", () => {
   let gateway: LwIdpServer;
   let gatewayUrl: string;
   let k8s: FakeK8s;
+  let argo: StubServer;
 
   beforeAll(async () => {
+    argo = await startStub();
     k8s = fakeK8sClient();
     const sessionStore = memorySession();
     await sessionStore.set(
@@ -74,7 +113,10 @@ describe("gateway /api/v1/security/cluster*", () => {
       port: 0,
       register: async (fastify) => {
         await fastify.register(sessionPlugin, { store: sessionStore });
-        await fastify.register(securityPlugin, { k8sClient: k8s });
+        await fastify.register(securityPlugin, {
+          k8sClient: k8s,
+          argocdApiUrl: argo.baseUrl,
+        });
       },
     });
     const addr = await gateway.listen();
@@ -86,6 +128,7 @@ describe("gateway /api/v1/security/cluster*", () => {
 
   afterAll(async () => {
     await gateway?.close();
+    await new Promise<void>((r) => argo?.server.close(() => r()));
   });
 
   beforeEach(() => {
@@ -419,6 +462,281 @@ describe("gateway /api/v1/security/cluster*", () => {
       expect(res.status).toBe(503);
       const body = (await res.json()) as { code: string };
       expect(body.code).toBe("trivy_not_installed");
+    });
+  });
+
+  // ---------- /api/v1/security/services/:slug ----------
+
+  describe("GET /api/v1/security/services/:slug", () => {
+    function nsHandler(slug: string, namespace: string): RouteHandler {
+      return (url) => {
+        if (url.startsWith(`/api/v1/applications/${slug}`)) {
+          return { status: 200, body: { spec: { destination: { namespace } } } };
+        }
+        return { status: 404, body: {} };
+      };
+    }
+
+    it("returns 401 without a session cookie", async () => {
+      const res = await fetch(`${gatewayUrl}/api/v1/security/services/gateway-svc`);
+      expect(res.status).toBe(401);
+    });
+
+    it("returns 404 when Argo CD App lookup returns 404 (slug not registered)", async () => {
+      argo.setHandler(() => ({ status: 404, body: {} }));
+      const res = await fetch(`${gatewayUrl}/api/v1/security/services/ghost`, {
+        headers: SESSION_COOKIE,
+      });
+      expect(res.status).toBe(404);
+      const body = (await res.json()) as { code: string };
+      expect(body.code).toBe("not_found");
+    });
+
+    it("returns 502 argocd_unreachable when Argo CD returns 5xx", async () => {
+      argo.setHandler(() => ({ status: 500, body: { error: "boom" } }));
+      const res = await fetch(`${gatewayUrl}/api/v1/security/services/gateway-svc`, {
+        headers: SESSION_COOKIE,
+      });
+      expect(res.status).toBe(502);
+      const body = (await res.json()) as { code: string };
+      expect(body.code).toBe("argocd_unreachable");
+    });
+
+    it("returns 200 with grouped reports filtered to the resolved namespace + slug", async () => {
+      argo.setHandler(nsHandler("gateway-svc", "lw-idp"));
+      const vulns = [
+        {
+          metadata: {
+            name: "deployment-gateway-svc",
+            namespace: "lw-idp",
+            labels: { "trivy-operator.resource.name": "gateway-svc" },
+          },
+          report: {
+            summary: {
+              criticalCount: 2,
+              highCount: 5,
+              mediumCount: 3,
+              lowCount: 1,
+              unknownCount: 0,
+            },
+            updateTimestamp: "2026-05-04T03:00:00Z",
+            vulnerabilities: [
+              {
+                vulnerabilityID: "CVE-2024-0001",
+                severity: "CRITICAL",
+                resource: "openssl",
+                installedVersion: "1.1.1",
+                fixedVersion: "1.1.2",
+                primaryLink: "https://nvd.nist.gov/CVE-2024-0001",
+              },
+              {
+                vulnerabilityID: "CVE-2024-0002",
+                severity: "HIGH",
+                resource: "libxml2",
+                installedVersion: "2.9.10",
+                fixedVersion: "2.9.13",
+                primaryLink: "https://nvd.nist.gov/CVE-2024-0002",
+              },
+            ],
+          },
+        },
+        // This one should be filtered out — different slug.
+        {
+          metadata: {
+            name: "deployment-catalog-svc",
+            namespace: "lw-idp",
+            labels: { "trivy-operator.resource.name": "catalog-svc" },
+          },
+          report: {
+            summary: { criticalCount: 99, highCount: 99 },
+            updateTimestamp: "2026-05-04T04:00:00Z",
+            vulnerabilities: [
+              {
+                vulnerabilityID: "CVE-XXX",
+                severity: "CRITICAL",
+                resource: "other",
+              },
+            ],
+          },
+        },
+      ];
+      const configs = [
+        {
+          metadata: {
+            name: "deployment-gateway-svc",
+            namespace: "lw-idp",
+            labels: { "trivy-operator.resource.name": "gateway-svc" },
+          },
+          report: {
+            checks: [
+              {
+                checkID: "AVD-KSV-001",
+                title: "Run as root",
+                severity: "HIGH",
+                messages: ["container runs as root"],
+              },
+            ],
+          },
+        },
+      ];
+      const secrets = [
+        {
+          metadata: {
+            name: "deployment-gateway-svc",
+            namespace: "lw-idp",
+            labels: { "trivy-operator.resource.name": "gateway-svc" },
+          },
+          report: {
+            secrets: [
+              {
+                ruleID: "aws-access-key",
+                title: "AWS Access Key",
+                severity: "CRITICAL",
+                match: "AKIA...",
+                target: "config.yaml",
+              },
+            ],
+          },
+        },
+      ];
+      k8s.setStubs(
+        new Map<string, unknown[]>([
+          ["vulnerabilityreports", vulns],
+          ["configauditreports", configs],
+          ["exposedsecretreports", secrets],
+        ]),
+      );
+
+      const res = await fetch(`${gatewayUrl}/api/v1/security/services/gateway-svc`, {
+        headers: SESSION_COOKIE,
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        service: string;
+        namespace: string;
+        vulnerability_summary: {
+          critical: number;
+          high: number;
+          medium: number;
+          low: number;
+          unknown: number;
+        };
+        vulnerabilities: { cve_id: string; severity: string }[];
+        config_audits: { check_id: string; severity: string }[];
+        exposed_secrets: { rule_id: string }[];
+        last_scan_at: string | null;
+      };
+      expect(body.service).toBe("gateway-svc");
+      expect(body.namespace).toBe("lw-idp");
+      expect(body.vulnerability_summary).toEqual({
+        critical: 2,
+        high: 5,
+        medium: 3,
+        low: 1,
+        unknown: 0,
+      });
+      expect(body.vulnerabilities).toHaveLength(2);
+      expect(body.vulnerabilities[0]?.cve_id).toBe("CVE-2024-0001");
+      expect(body.vulnerabilities[0]?.severity).toBe("CRITICAL");
+      expect(body.vulnerabilities[1]?.severity).toBe("HIGH");
+      expect(body.config_audits).toHaveLength(1);
+      expect(body.config_audits[0]?.check_id).toBe("AVD-KSV-001");
+      expect(body.exposed_secrets).toHaveLength(1);
+      expect(body.exposed_secrets[0]?.rule_id).toBe("aws-access-key");
+      expect(body.last_scan_at).toBe("2026-05-04T03:00:00Z");
+    });
+
+    it("returns 200 with empty arrays + null last_scan_at when no reports match", async () => {
+      argo.setHandler(nsHandler("gateway-svc", "lw-idp"));
+      k8s.setStubs(
+        new Map<string, unknown[]>([
+          ["vulnerabilityreports", []],
+          ["configauditreports", []],
+          ["exposedsecretreports", []],
+        ]),
+      );
+      const res = await fetch(`${gatewayUrl}/api/v1/security/services/gateway-svc`, {
+        headers: SESSION_COOKIE,
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        vulnerabilities: unknown[];
+        config_audits: unknown[];
+        exposed_secrets: unknown[];
+        last_scan_at: string | null;
+        vulnerability_summary: { critical: number };
+      };
+      expect(body.vulnerabilities).toEqual([]);
+      expect(body.config_audits).toEqual([]);
+      expect(body.exposed_secrets).toEqual([]);
+      expect(body.last_scan_at).toBeNull();
+      expect(body.vulnerability_summary.critical).toBe(0);
+    });
+
+    it("returns 503 trivy_not_installed when CRDs are missing (404)", async () => {
+      argo.setHandler(nsHandler("gateway-svc", "lw-idp"));
+      // Default empty stubs → listCustomResources throws "404".
+      const res = await fetch(`${gatewayUrl}/api/v1/security/services/gateway-svc`, {
+        headers: SESSION_COOKIE,
+      });
+      expect(res.status).toBe(503);
+      const body = (await res.json()) as { code: string };
+      expect(body.code).toBe("trivy_not_installed");
+    });
+
+    it("caps vulnerabilities at 50 and sorts Critical → High → Medium → Low", async () => {
+      argo.setHandler(nsHandler("gateway-svc", "lw-idp"));
+      // 80 vulnerabilities, mixed severities — even distribution so we know the
+      // cap is enforced and the sort is stable across severities.
+      const severities = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
+      const vulnerabilities = Array.from({ length: 80 }, (_, i) => ({
+        vulnerabilityID: `CVE-${i.toString().padStart(4, "0")}`,
+        severity: severities[i % 4],
+        resource: `pkg-${i}`,
+        installedVersion: "1.0.0",
+        fixedVersion: "1.0.1",
+        primaryLink: `https://example/CVE-${i}`,
+      }));
+      const vulns = [
+        {
+          metadata: {
+            name: "deployment-gateway-svc",
+            namespace: "lw-idp",
+            labels: { "trivy-operator.resource.name": "gateway-svc" },
+          },
+          report: {
+            summary: {
+              criticalCount: 20,
+              highCount: 20,
+              mediumCount: 20,
+              lowCount: 20,
+              unknownCount: 0,
+            },
+            updateTimestamp: "2026-05-04T05:00:00Z",
+            vulnerabilities,
+          },
+        },
+      ];
+      k8s.setStubs(
+        new Map<string, unknown[]>([
+          ["vulnerabilityreports", vulns],
+          ["configauditreports", []],
+          ["exposedsecretreports", []],
+        ]),
+      );
+      const res = await fetch(`${gatewayUrl}/api/v1/security/services/gateway-svc`, {
+        headers: SESSION_COOKIE,
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        vulnerabilities: { severity: string }[];
+      };
+      expect(body.vulnerabilities).toHaveLength(50);
+      // 20 Critical first, then 20 High, then 10 Medium = 50.
+      const sevs = body.vulnerabilities.map((v) => v.severity);
+      expect(sevs.slice(0, 20).every((s) => s === "CRITICAL")).toBe(true);
+      expect(sevs.slice(20, 40).every((s) => s === "HIGH")).toBe(true);
+      expect(sevs.slice(40, 50).every((s) => s === "MEDIUM")).toBe(true);
     });
   });
 });
