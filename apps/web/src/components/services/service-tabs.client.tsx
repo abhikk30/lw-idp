@@ -18,6 +18,8 @@ export function ServiceTabs({ id }: ServiceTabsProps): ReactNode {
     active = "builds";
   } else if (pathname.endsWith("/pipelines")) {
     active = "pipelines";
+  } else if (pathname.endsWith("/security")) {
+    active = "security";
   } else if (pathname.endsWith("/settings")) {
     active = "settings";
   }
@@ -36,6 +38,9 @@ export function ServiceTabs({ id }: ServiceTabsProps): ReactNode {
         </TabsTrigger>
         <TabsTrigger value="pipelines" asChild>
           <Link href={`/services/${id}/pipelines`}>Pipelines</Link>
+        </TabsTrigger>
+        <TabsTrigger value="security" asChild>
+          <Link href={`/services/${id}/security`}>Security</Link>
         </TabsTrigger>
         <TabsTrigger value="settings" asChild>
           <Link href={`/services/${id}/settings`}>Settings</Link>
